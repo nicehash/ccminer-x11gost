@@ -347,7 +347,7 @@ void cl_gpu_release(CLGPU* gpu)
 static void opencl_run_blake256(CLGPU* gpu, uint32_t work_size, size_t offset, cl_ulong target)
 {
 	if (opt_debug)
-		applog(LOG_INFO, "[GPU%u] run work = %u, offset = %u", gpu->threadNumber, work_size, offset);
+		applog(LOG_INFO, "[GPU%u] run work = %u, offset = %x", gpu->threadNumber, work_size, offset);
 
 	size_t off = offset;
 	size_t num = work_size;
@@ -428,17 +428,17 @@ int opencl_scan_blake256(int thr_id, CLGPU *gpu, uint32_t *pdata, const uint32_t
 			else
 				applog(LOG_ERR, "[GPU%u] share doesn't validate on CPU, hash=%08x, target=%08x", gpu->threadNumber, hash[7], ptarget[7]);
 		}
-		n += opt_work_size;
 
-		if ((uint64_t) first_nonce + n > (uint64_t) max_nonce) {
+		if (n + opt_work_size < max_nonce && n < UINT_MAX - opt_work_size)
+			n += opt_work_size;
+		else {
 			pdata[19] = max_nonce;
 			break;
 		}
 
 	} while (!work_restart[thr_id].restart);
 
-	pdata[19] = n;
-	*hashes_done = n - first_nonce;
+	*hashes_done = pdata[19] - first_nonce + 1;
 
 	cl_gpu_release(gpu);
 
