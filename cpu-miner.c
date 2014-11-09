@@ -239,7 +239,7 @@ uint64_t global_hashrate = 0;
 
 const char * opt_kernel = NULL;
 const char * kernel_path = NULL;
-uint32_t opt_work_size = (1 << 18); /* intensity 18 */
+uint32_t opt_work_size = 0; /* default */
 
 #ifdef HAVE_GETOPT_LONG
 #include <getopt.h>
@@ -284,10 +284,10 @@ Options:\n\
   -d, --devices         Comma separated list of CUDA devices to use.\n\
                         Device IDs start counting from 0! Alternatively takes\n\
                         string names of your cards like gtx780ti or gt640#2\n\
-                        (match 2nd GT640 in the PC)\n"
+                        (match 2nd GT640 in the PC)\n\
+  -i  --intensity=N     GPU intensity 0-31 (default: auto) \n"
 #ifdef WITH_OPENCL
 "\
-  -i  --intensity=N     OpenCL work intensity (default: 18) \n\
   -k  --kernel=...      OpenCL kernel.cl file \n\
   -K  --kernel-path=... OpenCL .cl files folder (default: current) \n"
 #endif
@@ -351,8 +351,8 @@ static struct option const options[] = {
 	{ "no-color", 0, NULL, 1002 },
 	{ "debug", 0, NULL, 'D' },
 	{ "help", 0, NULL, 'h' },
-#ifdef WITH_OPENCL
 	{ "intensity", 1, NULL, 'i' },
+#ifdef WITH_OPENCL
 	{ "kernel", 1, NULL, 'k' },
 	{ "kernel-path", 1, NULL, 'K' },
 #endif
@@ -1627,7 +1627,7 @@ static void parse_arg (int key, char *arg)
 	}
 	case 'i':
 		v = atoi(arg);
-		if (v < 10 || v > 30) /* sanity check */
+		if (v < 0 || v > 31)
 			show_usage_and_exit(1);
 		opt_work_size = (1 << v);
 		break;

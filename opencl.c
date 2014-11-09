@@ -11,7 +11,6 @@ enum platform_type {
 	OTHER
 };
 
-extern uint32_t opt_work_size;
 extern const char* kernel_path;
 
 void CHECK_OPENCL_ERROR(cl_int err, uint32_t id)
@@ -386,6 +385,7 @@ static void opencl_run_blake256(CLGPU* gpu, uint32_t work_size, size_t offset, c
 
 int opencl_scan_blake256(int thr_id, CLGPU *gpu, uint32_t *pdata, const uint32_t *ptarget, uint32_t max_nonce, unsigned long *hashes_done)
 {
+	uint32_t throughput = opt_work_size ? opt_work_size : (1 << 18);
 	uint32_t *nonceptr = (uint32_t*) (((char*)pdata) + 1);
 	uint32_t n = *nonceptr;
 	const uint32_t first_nonce = n;
@@ -413,7 +413,7 @@ int opencl_scan_blake256(int thr_id, CLGPU *gpu, uint32_t *pdata, const uint32_t
 			CopyBufferToDevice(gpu->commandQueue, gpu->outputBuffer, gpu->output, 4);
 		}
 
-		opencl_run_blake256(gpu, opt_work_size, n, *((uint64_t*)&ptarget[6]));
+		opencl_run_blake256(gpu, throughput, n, *((uint64_t*)&ptarget[6]));
 
 		CopyBufferToHost(gpu->commandQueue, gpu->outputBuffer, gpu->output, OUTPUT_SIZE);
 		for (uint32_t i = 1; i < ((uint32_t*)gpu->output)[0]; i++) {
@@ -429,8 +429,8 @@ int opencl_scan_blake256(int thr_id, CLGPU *gpu, uint32_t *pdata, const uint32_t
 				applog(LOG_ERR, "[GPU%u] share doesn't validate on CPU, hash=%08x, target=%08x", gpu->threadNumber, hash[7], ptarget[7]);
 		}
 
-		if (n + opt_work_size < max_nonce && n < UINT_MAX - opt_work_size)
-			n += opt_work_size;
+		if (n + opt_work_size < max_nonce && n < UINT_MAX - throughput)
+			n += throughput;
 		else {
 			pdata[19] = max_nonce;
 			break;
