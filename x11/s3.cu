@@ -57,10 +57,13 @@ extern "C" int scanhash_s3(int thr_id, uint32_t *pdata,
 	unsigned long *hashes_done)
 {
 	const uint32_t first_nonce = pdata[19];
-	int intensity = (device_sm[device_map[thr_id]] >= 500 && !is_windows()) ? 20 : 19;
-	uint32_t throughput = opt_work_size ? opt_work_size : (1 << intensity);
-
-	throughput = min(throughput, max_nonce - first_nonce);
+	int intensity = 20; // 256*256*8*2;
+#ifdef WIN32
+	// reduce by one the intensity on windows
+	intensity--;
+#endif
+	int throughput = opt_work_size ? opt_work_size : (1 << intensity);
+	throughput = min(throughput, (int)(max_nonce - first_nonce));
 
 	if (opt_benchmark)
 		((uint32_t*)ptarget)[7] = 0xF;
