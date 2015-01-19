@@ -1695,6 +1695,10 @@ void print_hash_tests(void)
 	printpfx("S3", hash);
 
 	memset(hash, 0, sizeof hash);
+	spreadx11_hash(&hash[0], &buf[0], &buf[0]);
+	printpfx("SpreadX11", hash);
+
+	memset(hash, 0, sizeof hash);
 	wcoinhash(&hash[0], &buf[0]);
 	printpfx("whirl", hash);
 

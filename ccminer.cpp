@@ -100,6 +100,7 @@ enum sha_algos {
 	ALGO_QUARK,
 	ALGO_QUBIT,
 	ALGO_S3,
+	ALGO_SPREADX11,
 	ALGO_WHC,
 	ALGO_X11,
 	ALGO_X13,
@@ -130,6 +131,7 @@ static const char *algo_names[] = {
 	"quark",
 	"qubit",
 	"s3",
+	"spreadx11",
 	"whirl",
 	"x11",
 	"x13",
@@ -237,6 +239,7 @@ Options:\n\
 			quark       Quark\n\
 			qubit       Qubit\n\
 			s3          S3 (1Coin)\n\
+			spreadx11   SpreadX11\n\
 			x11         X11 (DarkCoin)\n\
 			x13         X13 (MaruCoin)\n\
 			x14         X14\n\
@@ -458,10 +461,41 @@ static bool work_decode(const json_t *val, struct work *work)
 	int adata_sz = ARRAY_SIZE(work->data), atarget_sz = ARRAY_SIZE(work->target);
 	int i;
 
-	if (unlikely(!jobj_binary(val, "data", work->data, data_size))) {
-		applog(LOG_ERR, "JSON inval data");
-		return false;
+	if (opt_algo == ALGO_SPREADX11) {
+
+		int longdata_size = 185, alongdata_sz = 188/4;
+		size_t len = 0;
+
+		if (unlikely(!jobj_binary(val, "data", work->longdata, longdata_size))) {
+			applog(LOG_ERR, "JSON inval data");
+			return false;
+		}
+
+		memcpy(work->data, work->longdata, sizeof(work->data)); // fill start
+
+		if ( (len = jobj_binary(val, "pmr", work->privkey, sizeof(work->privkey))) == -1 ) {
+			applog(LOG_ERR, "JSON invalid privkey");
+			return false;
+		}
+		if ( (len = jobj_binary(val, "kinv", work->kinv, sizeof(work->kinv))) == -1 ) {
+			applog(LOG_ERR, "JSON invalid kinv");
+			return false;
+		}
+		if ( (len = jobj_binary(val, "tx", work->tx, sizeof(work->tx))) == -1 ) {
+			applog(LOG_ERR, "JSON invalid tx");
+			return false;
+		}
+
+		work->txsize = len;
+
+	} else {
+
+		if (unlikely(!jobj_binary(val, "data", work->data, data_size))) {
+			applog(LOG_ERR, "JSON inval data");
+			return false;
+		}
 	}
+
 	if (unlikely(!jobj_binary(val, "target", work->target, target_size))) {
 		applog(LOG_ERR, "JSON inval target");
 		return false;
@@ -656,11 +690,16 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 		/* build hex string */
 		char *str = NULL;
 
-		if (opt_algo != ALGO_HEAVY && opt_algo != ALGO_MJOLLNIR) {
+		if (opt_algo == ALGO_SPREADX11) {
+			str = bin2hex((uchar*)work->longdata, 185);
+		} else if (opt_algo == ALGO_HEAVY || opt_algo == ALGO_MJOLLNIR) {
+			str = bin2hex((uchar*)work->data, sizeof(work->data));
+		} else {
+			/* standard algos */
 			for (int i = 0; i < ARRAY_SIZE(work->data); i++)
 				le32enc(work->data + i, work->data[i]);
+			str = bin2hex((uchar*)work->data, sizeof(work->data));
 		}
-		str = bin2hex((uchar*)work->data, sizeof(work->data));
 		if (unlikely(!str)) {
 			applog(LOG_ERR, "submit_upstream_work OOM");
 			return false;
@@ -1156,6 +1195,11 @@ static void *miner_thread(void *userdata)
 		int wcmplen = 76;
 		uint32_t *nonceptr = (uint32_t*) (((char*)work.data) + wcmplen);
 
+		if (opt_algo == ALGO_SPREADX11) {
+			wcmplen = 84;
+			nonceptr = (uint32_t *) &work.longdata[84];
+		}
+
 		if (have_stratum) {
 			uint32_t sleeptime = 0;
 			while (!work_done && time(NULL) >= (g_work_time + opt_scantime)) {
@@ -1391,6 +1435,10 @@ static void *miner_thread(void *userdata)
 		case ALGO_S3:
 			rc = scanhash_s3(thr_id, work.data, work.target,
 			                      max_nonce, &hashes_done);
+			break;
+
+		case ALGO_SPREADX11:
+			rc = scanhash_spreadx11(thr_id, &work, max_nonce, &hashes_done);
 			break;
 
 		case ALGO_WHC:

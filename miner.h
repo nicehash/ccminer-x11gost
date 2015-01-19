@@ -277,6 +277,8 @@ void sha256_init_8way(uint32_t *state);
 void sha256_transform_8way(uint32_t *state, const uint32_t *block, int swap);
 #endif
 
+struct work; /* forward decl. */
+
 extern int scanhash_sha256d(int thr_id, uint32_t *pdata,
 	const uint32_t *ptarget, uint32_t max_nonce, unsigned long *hashes_done);
 
@@ -353,6 +355,9 @@ extern int scanhash_scrypt(int thr_id, uint32_t *pdata,
 extern int scanhash_s3(int thr_id, uint32_t *pdata,
 	const uint32_t *ptarget, uint32_t max_nonce,
 	unsigned long *hashes_done);
+
+extern int scanhash_spreadx11(int thr_id, struct work *work,
+	uint32_t max_nonce, unsigned long *hashes_done);
 
 extern int scanhash_whc(int thr_id, uint32_t *pdata,
 	const uint32_t *ptarget, uint32_t max_nonce,
@@ -602,6 +607,14 @@ struct work {
 
 	uint32_t scanned_from;
 	uint32_t scanned_to;
+
+	/* spread x11 members */
+	#define SPREAD_MAX_BLOCK_SIZE 200000
+	unsigned char longdata[256]; // 185 needed
+	unsigned char privkey[32];
+	unsigned char kinv[32];
+	unsigned char tx[SPREAD_MAX_BLOCK_SIZE];
+	size_t txsize;
 };
 
 bool stratum_socket_full(struct stratum_ctx *sctx, int timeout);
@@ -667,6 +680,7 @@ void pentablakehash(void *output, const void *input);
 void quarkhash(void *state, const void *input);
 void qubithash(void *state, const void *input);
 void s3hash(void *output, const void *input);
+void spreadx11_hash(void *output, void* pbegin, void* pend);
 void wcoinhash(void *state, const void *input);
 void x11hash(void *output, const void *input);
 void x13hash(void *output, const void *input);
