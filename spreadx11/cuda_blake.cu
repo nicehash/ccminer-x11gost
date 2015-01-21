@@ -37,8 +37,6 @@ const uint64_t host_u512[16] = {
 	0x0801f2e2858efc16ULL, 0x636920d871574e69ULL
 };
 
-#define ROTR(v,o) ROTR64(v,o)
-/*
 __forceinline__ __device__
 uint64_t ROTR(const uint64_t value, const int offset) {
 	uint64_t result;
@@ -67,7 +65,6 @@ uint64_t ROTR(const uint64_t value, const int offset) {
 #endif
 	return  result;
 }
-*/
 
 __device__ __forceinline__
 uint64_t ROTR64_32( uint64_t val )
