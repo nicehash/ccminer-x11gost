@@ -330,6 +330,7 @@
     <ClInclude Include="sph\sph_hamsi.h" />
     <ClInclude Include="sph\sph_types.h" />
     <ClInclude Include="sph\sph_whirlpool.h" />
+    <ClInclude Include="spreadx11\bignum_fp.h" />
     <ClInclude Include="uint256.h" />
   </ItemGroup>
   <ItemGroup>
@@ -428,6 +429,11 @@
     </CudaCompile>
     <CudaCompile Include="lyra2\lyra2RE.cu" />
     <CudaCompile Include="lyra2\cuda_lyra2.cu" />
+    <CudaCompile Include="spreadx11\cuda_blake.cu" />
+    <CudaCompile Include="spreadx11\cuda_sha256.cu" />
+    <CudaCompile Include="spreadx11\cuda_spreadx11_sign.cu" />
+    <CudaCompile Include="spreadx11\cuda_x11_echo.cu" />
+    <CudaCompile Include="spreadx11\spreadx11.cu" />
     <CudaCompile Include="x11\cuda_x11_aes.cu">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </CudaCompile>

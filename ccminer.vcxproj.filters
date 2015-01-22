@@ -70,6 +70,9 @@
     <Filter Include="Header Files\lyra2">
       <UniqueIdentifier>{2ff6e4ce-7c92-4cb2-a3ad-c331e94fd81d}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\CUDA\spread">
+      <UniqueIdentifier>{ce402b80-7c41-4897-859b-f993bcb9ef36}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="compat\jansson\dump.c">
@@ -362,6 +365,9 @@
     <ClInclude Include="lyra2\Sponge.h">
       <Filter>Header Files\lyra2</Filter>
     </ClInclude>
+    <ClInclude Include="spreadx11\bignum_fp.h">
+      <Filter>Source Files\CUDA\spread</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="cuda.cpp">
@@ -549,6 +555,21 @@
     </CudaCompile>
     <CudaCompile Include="lyra2\lyra2RE.cu">
       <Filter>Source Files\CUDA</Filter>
+    </CudaCompile>
+    <CudaCompile Include="spreadx11\cuda_blake.cu">
+      <Filter>Source Files\CUDA\spread</Filter>
+    </CudaCompile>
+    <CudaCompile Include="spreadx11\cuda_sha256.cu">
+      <Filter>Source Files\CUDA\spread</Filter>
+    </CudaCompile>
+    <CudaCompile Include="spreadx11\cuda_spreadx11_sign.cu">
+      <Filter>Source Files\CUDA\spread</Filter>
+    </CudaCompile>
+    <CudaCompile Include="spreadx11\cuda_x11_echo.cu">
+      <Filter>Source Files\CUDA\spread</Filter>
+    </CudaCompile>
+    <CudaCompile Include="spreadx11\spreadx11.cu">
+      <Filter>Source Files\CUDA\spread</Filter>
     </CudaCompile>
   </ItemGroup>
 </Project>

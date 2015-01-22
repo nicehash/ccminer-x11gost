@@ -1,7 +1,9 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <memory.h>
+
 #include "miner.h"
+#include "cuda_helper.h"
 
 __constant__ uint32_t c_PaddedMessage88[32]; // padded message, 88 bytes + padding to 128 bytes
 
@@ -57,12 +59,12 @@ uint32_t ROTR32( const uint32_t val, const size_t offset )
 	return (val >> offset) | (val << (32-offset));
 #endif
 }
-
+/*
 static __device__ uint32_t cuda_swab32(uint32_t x)
 {
 	return __byte_perm(x, x, 0x0123);
 }
-
+*/
 __host__
 uint32_t bswap32( const uint32_t x )
 {
