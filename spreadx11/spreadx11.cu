@@ -36,12 +36,11 @@ extern "C"
 #define PRINTTIME(s)
 #endif
 
-static uint32_t *d_hash[8];
-
-static uint32_t *d_sha256hash[8];
-static uint32_t *d_signature[8];
-static uint32_t *d_hashwholeblock[8];
-static uint32_t *d_wholeblockdata[8];
+static uint32_t *d_hash[MAX_GPUS];
+static uint32_t *d_sha256hash[MAX_GPUS];
+static uint32_t *d_signature[MAX_GPUS];
+static uint32_t *d_hashwholeblock[MAX_GPUS];
+static uint32_t *d_wholeblockdata[MAX_GPUS];
 
 extern void spreadx11_sha256double_cpu_hash_88(int thr_id, int threads, uint32_t startNonce, uint32_t *d_hash);
 extern void spreadx11_sha256double_setBlock_88(void *data);
@@ -111,24 +110,24 @@ void hextobin(unsigned char *p, const char *hexstr, size_t len)
 	}
 }
 
+static bool init[MAX_GPUS] = { 0 };
+
 extern "C" int scanhash_spreadx11(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done)
 {
-	// note: keep multiple of 64 to keep things simple with signatures
-	int intensity = (device_sm[device_map[thr_id]] >= 500 && !is_windows()) ? 20 : 19;
-	int throughput = opt_work_size ? opt_work_size : (1 << intensity); // 20=256*256*16;
-
 	uchar *blocktemplate = work->longdata;
 	uint32_t *ptarget = work->target;
 	uint32_t *pnonce = (uint32_t *) &blocktemplate[84];
 	uint32_t nonce = *pnonce;
 	uint32_t first_nonce = nonce;
 
+	int intensity = (device_sm[device_map[thr_id]] >= 500 && !is_windows()) ? 20 : 19;
+	// note: keep multiple of 64 to keep things simple with signatures
+	int throughput = (int) device_intensity(thr_id, __func__, 1 << intensity); // 19=256*256*8;
 	throughput = min(throughput, (int)(max_nonce - first_nonce));
 
 	if (opt_benchmark)
 		((uint32_t*)ptarget)[7] = 0x000000ff;
 
-	static bool init[8] = {0,0,0,0,0,0,0,0};
 	if (!init[thr_id])
 	{
 		cudaSetDevice(device_map[thr_id]);
