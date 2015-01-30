@@ -15,8 +15,8 @@ __constant__ uint32_t echo512_padding[16] = {
 
 #include "x11/cuda_x11_aes.cu"
 
-static uint32_t *d_nonce[8];
-static int *d_hashidx[8];
+static uint32_t *d_nonce[MAX_GPUS];
+static int *d_hashidx[MAX_GPUS];
 __constant__ uint32_t pTarget[8];
 
 __device__ __forceinline__ void AES_2ROUND(
@@ -203,7 +203,7 @@ void spreadx11_echo512_cpu_init(int thr_id, int threads)
 }
 
 __host__
-void spreadx11_echo512_cpu_setTarget(const void *ptarget)
+void spreadx11_echo512_cpu_setTarget(void *ptarget)
 {
 	cudaMemcpyToSymbol( pTarget, ptarget, 8*sizeof(uint32_t), 0, cudaMemcpyHostToDevice);
 }

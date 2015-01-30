@@ -216,9 +216,7 @@
       <MaxRegCount>80</MaxRegCount>
       <PtxAsOptionV>true</PtxAsOptionV>
       <Keep>false</Keep>
-      <CodeGeneration>compute_50,sm_50</CodeGeneration>
-      <Include>
-      </Include>
+      <CodeGeneration>compute_52,sm_52</CodeGeneration>
     </CudaCompile>
     <CudaLink>
       <PerformDeviceLink>false</PerformDeviceLink>
@@ -429,17 +427,16 @@
     </CudaCompile>
     <CudaCompile Include="lyra2\lyra2RE.cu" />
     <CudaCompile Include="lyra2\cuda_lyra2.cu" />
-    <CudaCompile Include="spreadx11\cuda_blake.cu" />
-    <CudaCompile Include="spreadx11\cuda_sha256.cu" />
+    <CudaCompile Include="spreadx11\cuda_spreadx11_blake.cu" />
+    <CudaCompile Include="spreadx11\cuda_spreadx11_sha256.cu" />
     <CudaCompile Include="spreadx11\cuda_spreadx11_sign.cu" />
-    <CudaCompile Include="spreadx11\cuda_x11_echo.cu" />
+    <CudaCompile Include="spreadx11\cuda_spreadx11_echo.cu" />
     <CudaCompile Include="spreadx11\spreadx11.cu" />
     <CudaCompile Include="x11\cuda_x11_aes.cu">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </CudaCompile>
     <CudaCompile Include="x11\cuda_x11_cubehash512.cu" />
-    <CudaCompile Include="x11\cuda_x11_echo.cu">
-    </CudaCompile>
+    <CudaCompile Include="x11\cuda_x11_echo.cu" />
     <CudaCompile Include="x11\cuda_x11_luffa512.cu" />
     <CudaCompile Include="x11\cuda_x11_luffa512_Cubehash.cu">
       <MaxRegCount>80</MaxRegCount>

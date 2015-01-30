@@ -78,11 +78,11 @@ extern void x11_luffaCubehash512_cpu_hash_64(int thr_id, int threads, uint32_t s
 extern void x11_shavite512_cpu_init(int thr_id, int threads);
 extern void x11_shavite512_cpu_hash_64(int thr_id, int threads, uint32_t startNounce, uint32_t *d_nonceVector, uint32_t *d_hash, int order);
 
-extern void x11_simd512_cpu_init(int thr_id, int threads);
+extern int x11_simd512_cpu_init(int thr_id, int threads);
 extern void x11_simd512_cpu_hash_64(int thr_id, int threads, uint32_t startNounce, uint32_t *d_nonceVector, uint32_t *d_hash, int order);
 
 extern void spreadx11_echo512_cpu_init(int thr_id, int threads);
-extern void spreadx11_echo512_cpu_setTarget(const void *ptarget);
+extern void spreadx11_echo512_cpu_setTarget(void *ptarget);
 extern uint32_t spreadx11_echo512_cpu_hash_64_final(int thr_id, int threads, uint32_t startNounce, uint32_t *d_nonceVector, uint32_t *d_hash, int *hashidx);
 
 void hextobin(unsigned char *p, const char *hexstr, size_t len)
@@ -320,7 +320,7 @@ extern "C" void spreadx11_hash(void *output, void* pbegin, void* pend) /* begin/
 	uchar hash[128];
 	memset(hash, 0, sizeof hash);
 
-	int len = ((uintptr_t) pend - (uintptr_t) pbegin) * 32;
+	int len = (int) ((uintptr_t) pend - (uintptr_t) pbegin) * 32;
 
 	memcpy(input, (void*) pbegin, len);
 
