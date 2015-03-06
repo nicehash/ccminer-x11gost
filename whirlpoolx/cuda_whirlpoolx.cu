@@ -155,13 +155,13 @@ uint64_t* d_xtra;
 uint64_t* d_tmp;
 
 __device__ __forceinline__ 
-static void getShared(uint64_t* __restrict__ sharedMemory){
+static void getShared(uint64_t* sharedMemory){
 	if (threadIdx.x < 256) {
 		sharedMemory[threadIdx.x] = mixTob0Tox[threadIdx.x];
 		sharedMemory[threadIdx.x+256]  = ROTL64(sharedMemory[threadIdx.x], 8);
-		sharedMemory[threadIdx.x+512]  = ROTL64(sharedMemory[threadIdx.x+256],8);
-		sharedMemory[threadIdx.x+768]  = ROTL64(sharedMemory[threadIdx.x+512],8);
-		sharedMemory[threadIdx.x+1024] = ROTL64(sharedMemory[threadIdx.x+768],8);
+		sharedMemory[threadIdx.x+512]  = ROTL64(sharedMemory[threadIdx.x],16);
+		sharedMemory[threadIdx.x+768]  = ROTL64(sharedMemory[threadIdx.x],24);
+		sharedMemory[threadIdx.x+1024] = ROTL64(sharedMemory[threadIdx.x],32);
 		sharedMemory[threadIdx.x+1280] = ROTR64(sharedMemory[threadIdx.x],24);
 		sharedMemory[threadIdx.x+1536] = ROTR64(sharedMemory[threadIdx.x],16);
 		sharedMemory[threadIdx.x+1792] = ROTR64(sharedMemory[threadIdx.x], 8);
