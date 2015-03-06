@@ -84,7 +84,7 @@
 #define HAVE_UNISTD_H 1
 
 /* Defined if libcurl supports AsynchDNS */
-/* #undef LIBCURL_FEATURE_ASYNCHDNS */
+#define LIBCURL_FEATURE_ASYNCHDNS 1
 
 /* Defined if libcurl supports IDN */
 #define LIBCURL_FEATURE_IDN 1
@@ -146,9 +146,6 @@
 /* Defined if libcurl supports TFTP */
 #define LIBCURL_PROTOCOL_TFTP 1
 
-/* Define to 1 if your C compiler doesn't accept -c and -o together. */
-/* #undef NO_MINUS_C_MINUS_O */
-
 /* Name of package */
 #define PACKAGE "ccminer"
 
@@ -185,7 +182,7 @@
 #define USE_AVX 1
 
 /* Define to 1 if AVX2 assembly is available. */
-/* #undef USE_AVX2 */
+#define USE_AVX2 1
 
 /* Define to 1 if XOP assembly is available. */
 #define USE_XOP 1
