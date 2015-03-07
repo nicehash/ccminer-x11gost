@@ -2237,9 +2237,11 @@ int main(int argc, char *argv[])
 #endif
 	printf("  Originally based on pooler cpuminer,\n");
 	printf("  CUDA support by Christian Buchner and Christian H.\n");
-	printf("  Include some of djm34 additions and sp optimisations\n\n");
-
+	printf("  Include some of djm34 additions and sp optimisations\n");
 	printf("BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo\n\n");
+
+	printf("  Whirlpoolx support by Provos Alexis.\n");
+	printf("VNL donation address: VrjvyQJ9d1Bfte5kVSA8qfZoYdN2C6weCG\n\n");
 
 	rpc_user = strdup("");
 	rpc_pass = strdup("");
