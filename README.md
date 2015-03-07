@@ -32,3 +32,6 @@ To rebuild them, you need to clone this repository and its submodules :
 
 There is also a [Tutorial for windows](http://cudamining.co.uk/url/tutorials/id/3) on [CudaMining](http://cudamining.co.uk) website.
 
+Whirlpoolx Support Information
+------------------------------
+http://vanillacoin.net/forums/viewtopic.php?id=553
