@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <memory.h>
 
-#define threadsPerBlock 256
+#define threadsPerBlock 1024
 
 #include "cuda_helper.h"
 
@@ -405,7 +405,7 @@ __global__ void precomputeX(int threads,uint64_t* d_xtra,uint64_t* d_tmp){
 	}
 }
 
-__global__ __launch_bounds__(threadsPerBlock,8)
+__global__ __launch_bounds__(threadsPerBlock,2)
 void whirlpoolx(uint32_t threads, uint32_t startNounce,uint32_t *resNounce){
 
 	__shared__ uint64_t sharedMemory[2048];
