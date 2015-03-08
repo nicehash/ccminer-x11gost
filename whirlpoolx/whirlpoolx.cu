@@ -44,7 +44,8 @@ static bool init[MAX_GPUS] = { 0 };
 extern "C" int scanhash_whirlpoolx(int thr_id, uint32_t *pdata,const uint32_t *ptarget, uint32_t max_nonce,unsigned long *hashes_done){
 	const uint32_t first_nonce = pdata[19];
 	uint32_t endiandata[20];
-	uint32_t throughput = pow(2,25);
+	int intensity = (device_sm[device_map[thr_id]] >= 500 && !is_windows()) ? 20 : 19;
+	uint32_t throughput = device_intensity(thr_id, __func__, 1U << intensity); // 19=256*256*8;
 	throughput = min(throughput, max_nonce - first_nonce);
 
 	if (opt_benchmark)
