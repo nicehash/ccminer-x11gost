@@ -2241,7 +2241,7 @@ int main(int argc, char *argv[])
 	printf("BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo\n\n");
 
 	printf("  Whirlpoolx support by Provos Alexis.\n");
-	printf("VNL donation address: VrjvyQJ9d1Bfte5kVSA8qfZoYdN2C6weCG\n\n");
+	printf("VNL donation address: Vr5oCen8NrY6ekBWFaaWjCUFBH4dyiS57W\n\n");
 
 	rpc_user = strdup("");
 	rpc_pass = strdup("");
