@@ -1916,8 +1916,7 @@ int main(int argc, char *argv[])
 #endif
 	printf("  Originally based on pooler cpuminer,\n");
 	printf("  CUDA support by Christian Buchner and Christian H.\n");
-	printf("  Include some of djm34 additions and sp optimisations\n");
-	printf("BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo\n\n");
+	printf("tpruvot BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo\n\n");
 
 	printf("  Whirlpoolx support by Provos Alexis.\n");
 	printf("VNL donation address: Vr5oCen8NrY6ekBWFaaWjCUFBH4dyiS57W\n\n");
