@@ -25,20 +25,7 @@ cbuchner v1.2:
 
 This is a CUDA accelerated mining application which handle :
 
-HeavyCoin & MjollnirCoin
-FugueCoin
-GroestlCoin & Myriad-Groestl
-JackpotCoin
-QuarkCoin family & AnimeCoin
-TalkCoin
-DarkCoin and other X11 coins
-NEOS blake (256 14-rounds)
-BlakeCoin (256 8-rounds)
-Keccak (Maxcoin)
-Deep, Doom and Qubit
-Pentablake (Blake 512 x5)
-S3 (OneCoin)
-Lyra2RE (new VertCoin algo)
+whirlpoolx (Vanilla coin)
 
 where some of these coins have a VERY NOTABLE nVidia advantage
 over competing AMD (OpenCL Only) implementations.
@@ -57,31 +44,7 @@ This code is based on the pooler cpuminer 2.3.2 release and inherits
 its command line interface and options.
 
   -a, --algo=ALGO       specify the algorithm to use
-                          anime       use to mine Animecoin
-                          blake       use to mine NEOS (Blake 256)
-                          blakecoin   use to mine Old Blake 256
-                          deep        use to mine Deepcoin
-                          dmd-gr      use to mine Diamond-Groestl
-                          fresh       use to mine Freshcoin
-                          fugue256    use to mine Fuguecoin
-                          groestl     use to mine Groestlcoin
-                          heavy       use to mine Heavycoin
-                          jackpot     use to mine Jackpotcoin
-                          keccak      use to mine Maxcoin
-                          luffa       use to mine Doomcoin
-                          lyra2       use to mine Vertcoin
-                          mjollnir    use to mine Mjollnircoin
-                          myr-gr      use to mine Myriad-Groest
-                          nist5       use to mine TalkCoin
-                          penta       use to mine Joincoin / Pentablake
-                          quark       use to mine Quarkcoin
-                          qubit       use to mine Qubit Algo
-                          s3          use to mine 1coin
-                          whirl       use to mine Whirlcoin
-                          x11         use to mine DarkCoin
-                          x14         use to mine X14Coin
-                          x15         use to mine Halcyon
-                          x17         use to mine X17
+                              whirlpoolx
 
   -d, --devices         gives a comma separated list of CUDA device IDs
                         to operate on. Device IDs start counting from 0!
@@ -169,12 +132,12 @@ I plan to add a json format later, if requests are formatted in json too..
 >>> Additional Notes <<<
 
 This code should be running on nVidia GPUs ranging from compute capability
-3.0 up to compute capability 5.2. Support for Compute 2.0 has been dropped
-so we can more efficiently implement new algorithms using the latest hardware
-features.
+2.1 up to compute capability 5.2.
 
 >>> RELEASE HISTORY <<<
-
+  Somewhere in march 2015
+                    forked and added whirlpoolx algo
+                    dropped minimum compute capability to 2.1
   Feb. 11th 2015  v1.5.3
                   Fix anime algo
                   Allow a default config file in user or ccminer folder
