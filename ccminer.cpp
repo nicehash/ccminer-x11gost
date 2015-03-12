@@ -51,8 +51,6 @@ BOOL WINAPI ConsoleHandler(DWORD);
 
 #define PROGRAM_NAME		"ccminer"
 #define LP_SCANTIME		60
-#define HEAVYCOIN_BLKHDR_SZ		84
-#define MNR_BLKHDR_SZ 80
 
 // from cuda.cpp
 int cuda_num_devices();
@@ -79,64 +77,10 @@ struct workio_cmd {
 };
 
 enum sha_algos {
-	ALGO_ANIME,
-	ALGO_BLAKE,
-	ALGO_BLAKECOIN,
-	ALGO_DEEP,
-	ALGO_DMD_GR,
-	ALGO_DOOM,
-	ALGO_FRESH,
-	ALGO_FUGUE256,		/* Fugue256 */
-	ALGO_GROESTL,
-	ALGO_HEAVY,		/* Heavycoin hash */
-	ALGO_KECCAK,
-	ALGO_JACKPOT,
-	ALGO_LUFFA_DOOM,
-	ALGO_LYRA2,
-	ALGO_MJOLLNIR,		/* Hefty hash */
-	ALGO_MYR_GR,
-	ALGO_NIST5,
-	ALGO_PENTABLAKE,
-	ALGO_QUARK,
-	ALGO_QUBIT,
-	ALGO_S3,
-	ALGO_WHC,
-	ALGO_X11,
-	ALGO_X13,
-	ALGO_X14,
-	ALGO_X15,
-	ALGO_X17,
 	ALGO_WHPX,
 };
 
 static const char *algo_names[] = {
-	"anime",
-	"blake",
-	"blakecoin",
-	"deep",
-	"dmd-gr",
-	"doom", /* is luffa */
-	"fresh",
-	"fugue256",
-	"groestl",
-	"heavy",
-	"keccak",
-	"jackpot",
-	"luffa",
-	"lyra2",
-	"mjollnir",
-	"myr-gr",
-	"nist5",
-	"penta",
-	"quark",
-	"qubit",
-	"s3",
-	"whirl",
-	"x11",
-	"x13",
-	"x14",
-	"x15",
-	"x17",
 	"whirlpoolx",
 };
 
@@ -160,7 +104,7 @@ int opt_timeout = 270;
 static int opt_scantime = 5;
 static json_t *opt_config;
 static const bool opt_time = true;
-static enum sha_algos opt_algo = ALGO_X11;
+static enum sha_algos opt_algo = ALGO_WHPX;
 int opt_n_threads = 0;
 int opt_affinity = -1;
 int opt_priority = 3;
@@ -220,32 +164,6 @@ static char const usage[] = "\
 Usage: " PROGRAM_NAME " [OPTIONS]\n\
 Options:\n\
   -a, --algo=ALGO       specify the hash algorithm to use\n\
-			anime       Animecoin\n\
-			blake       Blake 256 (SFR/NEOS)\n\
-			blakecoin   Fast Blake 256 (8 rounds)\n\
-			deep        Deepcoin\n\
-			dmd-gr      Diamond-Groestl\n\
-			fresh       Freshcoin (shavite 80)\n\
-			fugue256    Fuguecoin\n\
-			groestl     Groestlcoin\n\
-			heavy       Heavycoin\n\
-			jackpot     Jackpot\n\
-			keccak      Keccak-256 (Maxcoin)\n\
-			luffa       Doomcoin\n\
-			lyra2       VertCoin\n\
-			mjollnir    Mjollnircoin\n\
-			myr-gr      Myriad-Groestl\n\
-			nist5       NIST5 (TalkCoin)\n\
-			penta       Pentablake hash (5x Blake 512)\n\
-			quark       Quark\n\
-			qubit       Qubit\n\
-			s3          S3 (1Coin)\n\
-			x11         X11 (DarkCoin)\n\
-			x13         X13 (MaruCoin)\n\
-			x14         X14\n\
-			x15         X15\n\
-			x17         X17 (peoplecurrency)\n\
-			whirl       Whirlcoin (old whirlpool)\n\
 			whirlpoolx  Whirlpoolx (Vanilla coin)\n\
   -d, --devices         Comma separated list of CUDA devices to use.\n\
                         Device IDs start counting from 0! Alternatively takes\n\
@@ -474,11 +392,7 @@ static bool work_decode(const json_t *val, struct work *work)
 		return false;
 	}
 
-	if (opt_algo == ALGO_HEAVY) {
-		if (unlikely(!jobj_binary(val, "maxvote", &work->maxvote, sizeof(work->maxvote)))) {
-			work->maxvote = 2048;
-		}
-	} else work->maxvote = 0;
+	work->maxvote = 0;
 
 	for (i = 0; i < adata_sz; i++)
 		work->data[i] = le32dec(work->data + i);
@@ -515,10 +429,6 @@ static void calc_diff(struct work *work, int known)
 
 	swab256(rtarget, work->target);
 	data64 = (uint64_t *)(rtarget + 3); /* todo: index (3) can be tuned here */
-
-	if (opt_algo == ALGO_HEAVY) {
-		data64 = (uint64_t *)(rtarget + 2);
-	}
 
 	d64 = swab64(*data64);
 	if (unlikely(!d64))
@@ -633,18 +543,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 		ntimestr = bin2hex((const uchar*)(&ntime), 4);
 		xnonce2str = bin2hex(work->xnonce2, work->xnonce2_len);
 
-		if (opt_algo == ALGO_HEAVY) {
-			be16enc(&nvote, *((uint16_t*)&work->data[20]));
-			nvotestr = bin2hex((const uchar*)(&nvote), 2);
-			sprintf(s,
-				"{\"method\": \"mining.submit\", \"params\": [\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"], \"id\":4}",
-				rpc_user, work->job_id + 8, xnonce2str, ntimestr, noncestr, nvotestr);
-			free(nvotestr);
-		} else {
-			sprintf(s,
-				"{\"method\": \"mining.submit\", \"params\": [\"%s\", \"%s\", \"%s\", \"%s\", \"%s\"], \"id\":4}",
-				rpc_user, work->job_id + 8, xnonce2str, ntimestr, noncestr);
-		}
+		sprintf(s,"{\"method\": \"mining.submit\", \"params\": [\"%s\", \"%s\", \"%s\", \"%s\", \"%s\"], \"id\":4}",rpc_user, work->job_id + 8, xnonce2str, ntimestr, noncestr);
 		free(xnonce2str);
 		free(ntimestr);
 		free(noncestr);
@@ -663,10 +562,9 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 		/* build hex string */
 		char *str = NULL;
 
-		if (opt_algo != ALGO_HEAVY && opt_algo != ALGO_MJOLLNIR) {
-			for (int i = 0; i < ARRAY_SIZE(work->data); i++)
+		for (int i = 0; i < ARRAY_SIZE(work->data); i++)
 				le32enc(work->data + i, work->data[i]);
-		}
+
 		str = bin2hex((uchar*)work->data, sizeof(work->data));
 		if (unlikely(!str)) {
 			applog(LOG_ERR, "submit_upstream_work OOM");
@@ -992,28 +890,11 @@ static void stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 	work->height = sctx->job.height;
 
 	/* Generate merkle root */
-	switch (opt_algo) {
-		case ALGO_HEAVY:
-		case ALGO_MJOLLNIR:
-			heavycoin_hash(merkle_root, sctx->job.coinbase, (int)sctx->job.coinbase_size);
-			break;
-		case ALGO_FUGUE256:
-		case ALGO_GROESTL:
-		case ALGO_KECCAK:
-		case ALGO_BLAKECOIN:
-		case ALGO_WHC:
-			SHA256((uchar*)sctx->job.coinbase, sctx->job.coinbase_size, (uchar*)merkle_root);
-			break;
-		default:
-			sha256d(merkle_root, sctx->job.coinbase, (int)sctx->job.coinbase_size);
-	}
+	sha256d(merkle_root, sctx->job.coinbase, (int)sctx->job.coinbase_size);
 
 	for (i = 0; i < sctx->job.merkle_count; i++) {
 		memcpy(merkle_root + 32, sctx->job.merkle[i], 32);
-		if (opt_algo == ALGO_HEAVY || opt_algo == ALGO_MJOLLNIR)
-			heavycoin_hash(merkle_root, merkle_root, 64);
-		else
-			sha256d(merkle_root, merkle_root, 64);
+		sha256d(merkle_root, merkle_root, 64);
 	}
 	
 	/* Increment extranonce2 */
@@ -1028,23 +909,8 @@ static void stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		work->data[9 + i] = be32dec((uint32_t *)merkle_root + i);
 	work->data[17] = le32dec(sctx->job.ntime);
 	work->data[18] = le32dec(sctx->job.nbits);
-	if (opt_algo == ALGO_MJOLLNIR || opt_algo == ALGO_HEAVY)
-	{
-		for (i = 0; i < 20; i++)
-			work->data[i] = be32dec((uint32_t *)&work->data[i]);
-	}
-
 	work->data[20] = 0x80000000;
-	work->data[31] = (opt_algo == ALGO_MJOLLNIR) ? 0x000002A0 : 0x00000280;
-
-	// HeavyCoin (vote / reward)
-	if (opt_algo == ALGO_HEAVY) {
-		work->maxvote = 2048;
-		uint16_t *ext = (uint16_t*)(&work->data[20]);
-		ext[0] = opt_vote;
-		ext[1] = be16dec(sctx->job.nreward);
-		// applog(LOG_DEBUG, "DEBUG: vote=%hx reward=%hx", ext[0], ext[1]);
-	}
+	work->data[31] = 0x00000280;
 
 	pthread_mutex_unlock(&sctx->work_lock);
 
@@ -1057,23 +923,7 @@ static void stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		free(xnonce2str);
 	}
 
-	switch (opt_algo) {
-		case ALGO_JACKPOT:
-			diff_to_target(work->target, sctx->job.diff / (65536.0 * opt_difficulty));
-			break;
-		case ALGO_DMD_GR:
-		case ALGO_FRESH:
-		case ALGO_FUGUE256:
-		case ALGO_GROESTL:
-			diff_to_target(work->target, sctx->job.diff / (256.0 * opt_difficulty));
-			break;
-		case ALGO_KECCAK:
-		case ALGO_LYRA2:
-			diff_to_target(work->target, sctx->job.diff / (128.0 * opt_difficulty));
-			break;
-		default:
-			diff_to_target(work->target, sctx->job.diff / opt_difficulty);
-	}
+	diff_to_target(work->target, sctx->job.diff / opt_difficulty);
 }
 
 static void restart_threads(void)
@@ -1250,31 +1100,8 @@ static void *miner_thread(void *userdata)
 		/* on start, max64 should not be 0,
 		 *    before hashrate is computed */
 		if (max64 < minmax) {
-			switch (opt_algo) {
-			case ALGO_BLAKECOIN:
-			case ALGO_BLAKE:
-				minmax = 0x80000000U;
-				break;
-			case ALGO_KECCAK:
-				minmax = 0x40000000U;
-				break;
-			case ALGO_DOOM:
-			case ALGO_JACKPOT:
-			case ALGO_LUFFA_DOOM:
-				minmax = 0x2000000;
-				break;
-			case ALGO_S3:
-			case ALGO_X11:
-			case ALGO_X13:
-				minmax = 0x400000;
-				break;
-			case ALGO_LYRA2:
-				minmax = 0x100000;
-				break;
-			}
-			max64 = max(minmax-1, max64);
+			max64 = minmax-1;
 		}
-
 		// we can't scan more than uint capacity
 		max64 = min(UINT32_MAX, max64);
 
@@ -1304,136 +1131,9 @@ static void *miner_thread(void *userdata)
 		/* scan nonces for a proof-of-work hash */
 		switch (opt_algo) {
 
-		case ALGO_HEAVY:
-			rc = scanhash_heavy(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done, work.maxvote, HEAVYCOIN_BLKHDR_SZ);
-			break;
-
-		case ALGO_KECCAK:
-			rc = scanhash_keccak256(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_MJOLLNIR:
-			rc = scanhash_heavy(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done, 0, MNR_BLKHDR_SZ);
-			break;
-
-		case ALGO_DEEP:
-			rc = scanhash_deep(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_DOOM:
-		case ALGO_LUFFA_DOOM:
-			rc = scanhash_doom(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_FUGUE256:
-			rc = scanhash_fugue256(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_GROESTL:
-		case ALGO_DMD_GR:
-			rc = scanhash_groestlcoin(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_MYR_GR:
-			rc = scanhash_myriad(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_JACKPOT:
-			rc = scanhash_jackpot(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_QUARK:
-			rc = scanhash_quark(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_QUBIT:
-			rc = scanhash_qubit(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_ANIME:
-			rc = scanhash_anime(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_BLAKECOIN:
-			rc = scanhash_blake256(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done, 8);
-			break;
-
-		case ALGO_BLAKE:
-			rc = scanhash_blake256(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done, 14);
-			break;
-
-		case ALGO_FRESH:
-			rc = scanhash_fresh(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_LYRA2:
-			rc = scanhash_lyra2(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_NIST5:
-			rc = scanhash_nist5(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_PENTABLAKE:
-			rc = scanhash_pentablake(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_S3:
-			rc = scanhash_s3(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_WHC:
-			rc = scanhash_whc(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
 		case ALGO_WHPX:
 			rc = scanhash_whirlpoolx(thr_id, work.data, work.target,
 				max_nonce, &hashes_done);	
-			break;
-
-		case ALGO_X11:
-			rc = scanhash_x11(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_X13:
-			rc = scanhash_x13(thr_id, work.data, work.target,
-			                      max_nonce, &hashes_done);
-			break;
-
-		case ALGO_X14:
-			rc = scanhash_x14(thr_id, work.data, work.target,
-				max_nonce, &hashes_done);
-			break;
-
-		case ALGO_X15:
-			rc = scanhash_x15(thr_id, work.data, work.target,
-				max_nonce, &hashes_done);
-			break;
-
-		case ALGO_X17:
-			rc = scanhash_x17(thr_id, work.data, work.target,
-				max_nonce, &hashes_done);
 			break;
 
 		default:
@@ -1454,21 +1154,10 @@ static void *miner_thread(void *userdata)
 		if (diff.tv_usec || diff.tv_sec) {
 			double dtime = (double) diff.tv_sec + 1e-6 * diff.tv_usec;
 
-			/* hashrate factors for some algos */
-			double rate_factor = 1.0;
-			switch (opt_algo) {
-				case ALGO_JACKPOT:
-				case ALGO_QUARK:
-					// to stay comparable to other ccminer forks or pools
-					rate_factor = 0.5;
-					break;
-			}
-
 			/* store thread hashrate */
 			if (dtime > 0.0) {
 				pthread_mutex_lock(&stats_lock);
 				thr_hashrates[thr_id] = hashes_done / dtime;
-				thr_hashrates[thr_id] *= rate_factor;
 				stats_remember_speed(thr_id, hashes_done, thr_hashrates[thr_id], (uint8_t) rc, work.height);
 				pthread_mutex_unlock(&stats_lock);
 			}
@@ -2024,10 +1713,6 @@ void parse_arg(int key, char *arg)
 		want_stratum = false;
 		have_stratum = false;
 		break;
-	case 1006:
-		print_hash_tests();
-		proper_exit(0);
-		break;
 	case 1003:
 		want_longpoll = false;
 		break;
@@ -2178,12 +1863,6 @@ static void parse_cmdline(int argc, char *argv[])
 	}
 
 	parse_config();
-
-	if (opt_algo == ALGO_HEAVY && opt_vote == 9999) {
-		fprintf(stderr, "%s: Heavycoin hash requires block reward vote parameter (see --vote)\n",
-			argv[0]);
-		show_usage_and_exit(1);
-	}
 }
 
 #ifndef WIN32

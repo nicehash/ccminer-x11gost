@@ -1,6 +1,7 @@
 
 ccminer
 *.o
+*~
 
 autom4te.cache
 .deps
@@ -15,7 +16,6 @@ depcomp
 missing
 install-sh
 stamp-h1
-cpuminer-config.h*
 compile
 config.log
 config.status

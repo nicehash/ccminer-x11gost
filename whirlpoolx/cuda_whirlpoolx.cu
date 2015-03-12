@@ -10,12 +10,11 @@
 #include "cuda_helper.h"
 
 __constant__ uint64_t c_PaddedMessage80[16]; // padded message (80 bytes + padding)
-__constant__ uint64_t c_xtra[8];
-__constant__ uint64_t c_tmp[72];
+__constant__ uint64_t c_tmp[8*9];
 __constant__ uint64_t pTarget[4];
 
-uint32_t *d_wxnounce[MAX_GPUS];
-uint32_t *d_WXNonce[MAX_GPUS];
+uint32_t *d_wxnonce[MAX_GPUS] = { 0 };
+uint32_t *d_WXNonce[MAX_GPUS] = { 0 };
 
 /**
  * Whirlpool CUDA kernel implementation.
@@ -50,7 +49,7 @@ uint32_t *d_WXNonce[MAX_GPUS];
  * @author Provos Alexis
  */
 
-__constant__ __align__(64) uint64_t mixTob0Tox[256];
+__constant__ __align__(128) uint64_t mixTob0Tox[256];
 
 const uint64_t plain_T0[256]= {
 	0xD83078C018601818,0x2646AF05238C2323,0xB891F97EC63FC6C6,0xFBCD6F13E887E8E8,0xCB13A14C87268787,0x116D62A9B8DAB8B8,0x0902050801040101,0x0D9E6E424F214F4F,0x9B6CEEAD36D83636,
@@ -97,14 +96,14 @@ const uint64_t plain_RC[10] = {
 /* ====================================================================== */
 
 __device__ __forceinline__
-static uint64_t ROUND_ELT(const uint64_t* sharedMemory, const uint64_t* __restrict__ in, const int i0, const int i1, const int i2, const int i3, const int i4, const int i5, const int i6, const int i7)
+static uint64_t ROUND_ELT(const uint64_t* sharedMemory, const uint64_t* in, const int i0, const int i1, const int i2, const int i3, const int i4, const int i5, const int i6, const int i7)
 {
 	uint32_t* in32 = (uint32_t*)in;
-	return xor8(	sharedMemory[__byte_perm(in32[(i0 << 1)], 0, 0x4440)],
+	return xor8(	sharedMemory[in32[(i0 << 1)]&0xFF],
 			sharedMemory[__byte_perm(in32[(i1 << 1)], 0, 0x4441) + 256],
 			sharedMemory[__byte_perm(in32[(i2 << 1)], 0, 0x4442) + 512],
 			sharedMemory[__byte_perm(in32[(i3 << 1)], 0, 0x4443) + 768],
-			sharedMemory[__byte_perm(in32[(i4 << 1) + 1], 0, 0x4440) + 1024],
+			sharedMemory[(in32[(i4 << 1) + 1]&0xFF) + 1024],
 			sharedMemory[__byte_perm(in32[(i5 << 1) + 1], 0, 0x4441) + 1280],
 			sharedMemory[__byte_perm(in32[(i6 << 1) + 1], 0, 0x4442) + 1536],
 			sharedMemory[__byte_perm(in32[(i7 << 1) + 1], 0, 0x4443) + 1792]);
@@ -151,8 +150,7 @@ static uint64_t ROUND_ELT(const uint64_t* sharedMemory, const uint64_t* __restri
 	ROUND(table, in, out, key[0], key[1], key[2],key[3], key[4], key[5], key[6], key[7]) \
 	TRANSFER(in, out)
 
-uint64_t* d_xtra;
-uint64_t* d_tmp;
+uint64_t* d_tmp[MAX_GPUS] = { 0 };
 
 __device__ __forceinline__ 
 static void getShared(uint64_t* sharedMemory){
@@ -170,7 +168,11 @@ static void getShared(uint64_t* sharedMemory){
 }
 
 
-__global__ void precomputeX(int threads,uint64_t* d_xtra,uint64_t* d_tmp){
+__global__ 
+#if __CUDA_ARCH__ > 200
+ __launch_bounds__(256,8) 
+#endif
+void precomputeX(int threads,uint64_t* d_tmp){
 
 	__shared__ uint64_t sharedMemory[2048];
 
@@ -196,7 +198,6 @@ __global__ void precomputeX(int threads,uint64_t* d_xtra,uint64_t* d_tmp){
 			h[i] = xor1(n[i],c_PaddedMessage80[i]);
 		}
 
-		if(threadIdx.x==0)d_xtra[threadIdx.x]=h[1];
 		uint64_t atLastCalc=xor1(h[3],h[5]);
 		
 		//////////////////////////////////
@@ -213,7 +214,7 @@ __global__ void precomputeX(int threads,uint64_t* d_xtra,uint64_t* d_tmp){
 		n[2] = xor1(n[2],h[2]);	n[3] = h[3];
 		n[4] = h[4];	n[5] = h[5];
 		n[6] = h[6];	n[7] = xor1(n[7],h[7]);
-		uint64_t tmp[8];
+		uint64_t tmp[16];
 		tmp[0] = xor1(ROUND_ELT(sharedMemory, h, 0, 7, 6, 5, 4, 3, 2, 1),InitVector_RC[0]);
 		tmp[1] = ROUND_ELT(sharedMemory, h, 1, 0, 7, 6, 5, 4, 3, 2);
 		tmp[2] = ROUND_ELT(sharedMemory, h, 2, 1, 0, 7, 6, 5, 4, 3);
@@ -223,55 +224,54 @@ __global__ void precomputeX(int threads,uint64_t* d_xtra,uint64_t* d_tmp){
 		tmp[6] = ROUND_ELT(sharedMemory, h, 6, 5, 4, 3, 2, 1, 0, 7);
 		tmp[7] = ROUND_ELT(sharedMemory, h, 7, 6, 5, 4, 3, 2, 1, 0);
 
-		uint64_t tmp2[8];
 		uint32_t* n32 = (uint32_t*)n;
-		tmp2[0]=xor8(	sharedMemory[__byte_perm(n32[ 0], 0, 0x4440)]  		,sharedMemory[__byte_perm(n32[14], 0, 0x4441) + 256],
+		tmp[8]=xor8(	sharedMemory[__byte_perm(n32[ 0], 0, 0x4440)]  		,sharedMemory[__byte_perm(n32[14], 0, 0x4441) + 256],
 				sharedMemory[__byte_perm(n32[12], 0, 0x4442) + 512]	,sharedMemory[__byte_perm(n32[10], 0, 0x4443) + 768],
 				sharedMemory[__byte_perm(n32[ 9], 0, 0x4440) + 1024]	,sharedMemory[__byte_perm(n32[ 7], 0, 0x4441) + 1280],
 				sharedMemory[__byte_perm(n32[ 5], 0, 0x4442) + 1536]	,tmp[0]);
 
-		tmp2[1]=xor8(	tmp[1]							,sharedMemory[__byte_perm(n32[ 0], 0, 0x4441) + 256],
+		tmp[9]=xor8(	tmp[1]							,sharedMemory[__byte_perm(n32[ 0], 0, 0x4441) + 256],
 				sharedMemory[__byte_perm(n32[14], 0, 0x4442) +  512]	,sharedMemory[__byte_perm(n32[12], 0, 0x4443) + 768],
 				sharedMemory[__byte_perm(n32[11], 0, 0x4440) + 1024]	,sharedMemory[__byte_perm(n32[ 9], 0, 0x4441) + 1280],
 				sharedMemory[__byte_perm(n32[ 7], 0, 0x4442) + 1536]	,sharedMemory[__byte_perm(n32[ 5], 0, 0x4443) + 1792]);
 
-		tmp2[2]=xor8(	sharedMemory[__byte_perm(n32[ 4], 0, 0x4440)]  		,tmp[2]						    ,
+		tmp[10]=xor8(	sharedMemory[__byte_perm(n32[ 4], 0, 0x4440)]  		,tmp[2]						    ,
 				sharedMemory[__byte_perm(n32[ 0], 0, 0x4442) +  512]	,sharedMemory[__byte_perm(n32[14], 0, 0x4443) + 768],
 				sharedMemory[__byte_perm(n32[13], 0, 0x4440) + 1024]	,sharedMemory[__byte_perm(n32[11], 0, 0x4441) + 1280],
 				sharedMemory[__byte_perm(n32[ 9], 0, 0x4442) + 1536]	,sharedMemory[__byte_perm(n32[ 7], 0, 0x4443) + 1792]);
 
-		tmp2[3]=xor8(	sharedMemory[__byte_perm(n32[ 6], 0, 0x4440)]  		,sharedMemory[__byte_perm(n32[ 4], 0, 0x4441) + 256],
+		tmp[11]=xor8(	sharedMemory[__byte_perm(n32[ 6], 0, 0x4440)]  		,sharedMemory[__byte_perm(n32[ 4], 0, 0x4441) + 256],
 				tmp[3]							,sharedMemory[__byte_perm(n32[ 0], 0, 0x4443) + 768],
 				sharedMemory[__byte_perm(n32[15], 0, 0x4440) + 1024]	,sharedMemory[__byte_perm(n32[13], 0, 0x4441) + 1280],
 				sharedMemory[__byte_perm(n32[11], 0, 0x4442) + 1536]	,sharedMemory[__byte_perm(n32[ 9], 0, 0x4443) + 1792]);
 
-		tmp2[4]=xor8(	sharedMemory[__byte_perm(n32[ 8], 0, 0x4440)]  		,sharedMemory[__byte_perm(n32[ 6], 0, 0x4441) + 256]  ,
+		tmp[12]=xor8(	sharedMemory[__byte_perm(n32[ 8], 0, 0x4440)]  		,sharedMemory[__byte_perm(n32[ 6], 0, 0x4441) + 256]  ,
 				sharedMemory[__byte_perm(n32[ 4], 0, 0x4442) +  512]	,tmp[4]						      ,
 				sharedMemory[__byte_perm(n32[ 1], 0, 0x4440) + 1024]	,sharedMemory[__byte_perm(n32[15], 0, 0x4441) + 1280] ,
 				sharedMemory[__byte_perm(n32[13], 0, 0x4442) + 1536]	,sharedMemory[__byte_perm(n32[11], 0, 0x4443) + 1792]);
 
-		tmp2[5]=xor8(	sharedMemory[__byte_perm(n32[10], 0, 0x4440)]  		,sharedMemory[__byte_perm(n32[ 8], 0, 0x4441) + 256],
+		tmp[13]=xor8(	sharedMemory[__byte_perm(n32[10], 0, 0x4440)]  		,sharedMemory[__byte_perm(n32[ 8], 0, 0x4441) + 256],
 				sharedMemory[__byte_perm(n32[ 6], 0, 0x4442) +  512]	,sharedMemory[__byte_perm(n32[ 4], 0, 0x4443) + 768],
 				tmp[5]							,sharedMemory[__byte_perm(n32[ 1], 0, 0x4441) + 1280],
 				sharedMemory[__byte_perm(n32[15], 0, 0x4442) + 1536]	,sharedMemory[__byte_perm(n32[13], 0, 0x4443) + 1792]);
 
-		tmp2[6]=xor8(	sharedMemory[__byte_perm(n32[12], 0, 0x4440)]  		,sharedMemory[__byte_perm(n32[10], 0, 0x4441) + 256],
+		tmp[14]=xor8(	sharedMemory[__byte_perm(n32[12], 0, 0x4440)]  		,sharedMemory[__byte_perm(n32[10], 0, 0x4441) + 256],
 				sharedMemory[__byte_perm(n32[ 8], 0, 0x4442) +  512]	,sharedMemory[__byte_perm(n32[ 6], 0, 0x4443) + 768],
 				sharedMemory[__byte_perm(n32[ 5], 0, 0x4440) + 1024]	,tmp[6],
 				sharedMemory[__byte_perm(n32[ 1], 0, 0x4442) + 1536]	,sharedMemory[__byte_perm(n32[15], 0, 0x4443) + 1792]);
 		
-		tmp2[7]=xor8(	sharedMemory[__byte_perm(n32[14], 0, 0x4440)]  		,sharedMemory[__byte_perm(n32[12], 0, 0x4441) + 256],
+		tmp[15]=xor8(	sharedMemory[__byte_perm(n32[14], 0, 0x4440)]  		,sharedMemory[__byte_perm(n32[12], 0, 0x4441) + 256],
 				sharedMemory[__byte_perm(n32[10], 0, 0x4442) +  512]	,sharedMemory[__byte_perm(n32[ 8], 0, 0x4443) + 768],
 				sharedMemory[__byte_perm(n32[ 7], 0, 0x4440) + 1024]	,sharedMemory[__byte_perm(n32[ 5], 0, 0x4441) + 1280],
 				tmp[7]							,sharedMemory[__byte_perm(n32[ 1], 0, 0x4443) + 1792]);
 
-		n[1] ^= h[1];
-		tmp2[1]^=sharedMemory[__byte_perm(n32[2], 0, 0x4440)];
-		tmp2[2]^=sharedMemory[__byte_perm(n32[2], 0, 0x4441) + 256];
-		tmp2[3]^=sharedMemory[__byte_perm(n32[2], 0, 0x4442) +  512];
-		tmp2[4]^=sharedMemory[__byte_perm(n32[2], 0, 0x4443) + 768];
+		n[1] =xor1(n[1],h[1]);
+		tmp[9]=xor1(tmp[9],sharedMemory[__byte_perm(n32[2], 0, 0x4440)]);
+		tmp[10]=xor1(tmp[10],sharedMemory[__byte_perm(n32[2], 0, 0x4441) + 256]);
+		tmp[11]=xor1(tmp[11],sharedMemory[__byte_perm(n32[2], 0, 0x4442) +  512]);
+		tmp[12]=xor1(tmp[12],sharedMemory[__byte_perm(n32[2], 0, 0x4443) + 768]);
 
-		d_tmp[threadIdx.x]=tmp2[threadIdx.x];
+		d_tmp[threadIdx.x]=tmp[8+threadIdx.x];
 
 		uint64_t tmp3[8];
 		tmp3[0] = xor1(ROUND_ELT(sharedMemory, tmp, 0, 7, 6, 5, 4, 3, 2, 1), InitVector_RC[1]);
@@ -283,130 +283,73 @@ __global__ void precomputeX(int threads,uint64_t* d_xtra,uint64_t* d_tmp){
 		tmp3[6] = ROUND_ELT(sharedMemory, tmp, 6, 5, 4, 3, 2, 1, 0, 7);
 		tmp3[7] = ROUND_ELT(sharedMemory, tmp, 7, 6, 5, 4, 3, 2, 1, 0);
 
-		n32 = (uint32_t*)tmp2;
-		uint64_t tmp4[8];
-		tmp4[0]=(	sharedMemory[__byte_perm(n32[ 9], 0, 0x4440) + 1024]	^sharedMemory[__byte_perm(n32[ 7], 0, 0x4441) + 1280]^
-			sharedMemory[__byte_perm(n32[ 5], 0, 0x4442) + 1536]	^sharedMemory[__byte_perm(n32[ 3], 0, 0x4443) + 1792]) ^tmp3[0];
+		n32 = (uint32_t*)&tmp[8];
+		tmp[0]=xor1(	xor3(sharedMemory[__byte_perm(n32[ 9], 0, 0x4440) + 1024],sharedMemory[__byte_perm(n32[ 7], 0, 0x4441) + 1280],sharedMemory[__byte_perm(n32[ 5], 0, 0x4442) + 1536]),	
+				xor1(sharedMemory[__byte_perm(n32[ 3], 0, 0x4443) + 1792],tmp3[0]));
 
-		tmp4[1]=(sharedMemory[__byte_perm(n32[ 2], 0, 0x4440)]		^sharedMemory[__byte_perm(n32[ 9], 0, 0x4441) + 1280]^
-			sharedMemory[__byte_perm(n32[ 7], 0, 0x4442) + 1536]	^sharedMemory[__byte_perm(n32[ 5], 0, 0x4443) + 1792]) ^tmp3[1];
+		tmp[1]=xor1(	xor3(sharedMemory[__byte_perm(n32[ 2], 0, 0x4440)],sharedMemory[__byte_perm(n32[ 9], 0, 0x4441) + 1280],sharedMemory[__byte_perm(n32[ 7], 0, 0x4442) + 1536]),
+				xor1(sharedMemory[__byte_perm(n32[ 5], 0, 0x4443) + 1792],tmp3[1]));
 
-		tmp4[2]=(sharedMemory[__byte_perm(n32[ 4], 0, 0x4440)]  	^sharedMemory[__byte_perm(n32[ 2], 0, 0x4441) + 256]^
-			sharedMemory[__byte_perm(n32[ 9], 0, 0x4442) + 1536]	^sharedMemory[__byte_perm(n32[ 7], 0, 0x4443) + 1792]) ^tmp3[2];
+		tmp[2]=xor1(	xor3(sharedMemory[__byte_perm(n32[ 4], 0, 0x4440)],sharedMemory[__byte_perm(n32[ 2], 0, 0x4441) + 256],sharedMemory[__byte_perm(n32[ 9], 0, 0x4442) + 1536]),
+				xor1(sharedMemory[__byte_perm(n32[ 7], 0, 0x4443) + 1792],tmp3[2]));
 
-		tmp4[3]=(sharedMemory[__byte_perm(n32[ 6], 0, 0x4440)]  	^sharedMemory[__byte_perm(n32[ 4], 0, 0x4441) + 256]^
-			sharedMemory[__byte_perm(n32[ 2], 0, 0x4442) +  512]	^sharedMemory[__byte_perm(n32[ 9], 0, 0x4443) + 1792]) ^tmp3[3];
+		tmp[3]=xor1(	xor3(sharedMemory[__byte_perm(n32[ 6], 0, 0x4440)],sharedMemory[__byte_perm(n32[ 4], 0, 0x4441) + 256],sharedMemory[__byte_perm(n32[ 2], 0, 0x4442) +  512]),
+				xor1(sharedMemory[__byte_perm(n32[ 9], 0, 0x4443) + 1792],tmp3[3]));
 
-		tmp4[4]=(sharedMemory[__byte_perm(n32[ 8], 0, 0x4440)]  	^sharedMemory[__byte_perm(n32[ 6], 0, 0x4441) + 256]^
-			sharedMemory[__byte_perm(n32[ 4], 0, 0x4442) +  512]	^sharedMemory[__byte_perm(n32[ 2], 0, 0x4443) + 768]) ^tmp3[4];
+		tmp[4]=xor1(	xor3(sharedMemory[__byte_perm(n32[ 8], 0, 0x4440)],sharedMemory[__byte_perm(n32[ 6], 0, 0x4441) + 256],sharedMemory[__byte_perm(n32[ 4], 0, 0x4442) +  512]),
+				xor1(sharedMemory[__byte_perm(n32[ 2], 0, 0x4443) + 768],tmp3[4]));
 
-		tmp4[5]=(sharedMemory[__byte_perm(n32[ 8], 0, 0x4441) + 256]	^sharedMemory[__byte_perm(n32[ 6], 0, 0x4442) +  512]^
-			sharedMemory[__byte_perm(n32[ 4], 0, 0x4443) + 768]	^sharedMemory[__byte_perm(n32[ 3], 0, 0x4440) + 1024]) ^tmp3[5];
+		tmp[5]=xor1(	xor3(sharedMemory[__byte_perm(n32[ 8], 0, 0x4441) + 256],sharedMemory[__byte_perm(n32[ 6], 0, 0x4442) +  512],sharedMemory[__byte_perm(n32[ 4], 0, 0x4443) + 768]),	
+				xor1(sharedMemory[__byte_perm(n32[ 3], 0, 0x4440) + 1024],tmp3[5]));
 
-		tmp4[6]=(sharedMemory[__byte_perm(n32[ 8], 0, 0x4442) +  512]	^sharedMemory[__byte_perm(n32[ 6], 0, 0x4443) + 768]^
-			sharedMemory[__byte_perm(n32[ 5], 0, 0x4440) + 1024]	^sharedMemory[__byte_perm(n32[ 3], 0, 0x4441) + 1280]) ^tmp3[6];
+		tmp[6]=xor1(	xor3(sharedMemory[__byte_perm(n32[ 8], 0, 0x4442) +  512],sharedMemory[__byte_perm(n32[ 6], 0, 0x4443) + 768],sharedMemory[__byte_perm(n32[ 5], 0, 0x4440) + 1024]),
+				xor1(sharedMemory[__byte_perm(n32[ 3], 0, 0x4441) + 1280],tmp3[6]));
 	
-		tmp4[7]=(sharedMemory[__byte_perm(n32[ 8], 0, 0x4443) + 768]	^sharedMemory[__byte_perm(n32[ 7], 0, 0x4440) + 1024]^
-			sharedMemory[__byte_perm(n32[ 5], 0, 0x4441) + 1280]	^sharedMemory[__byte_perm(n32[ 3], 0, 0x4442) + 1536]) ^tmp3[7];
+		tmp[7]=xor1(	xor3(sharedMemory[__byte_perm(n32[ 8], 0, 0x4443) + 768],sharedMemory[__byte_perm(n32[ 7], 0, 0x4440) + 1024],sharedMemory[__byte_perm(n32[ 5], 0, 0x4441) + 1280]),	
+				xor1(sharedMemory[__byte_perm(n32[ 3], 0, 0x4442) + 1536],tmp3[7]));
 
-		d_tmp[threadIdx.x+16]=tmp4[threadIdx.x];
+		d_tmp[threadIdx.x+8]=tmp[threadIdx.x];
 
-		uint64_t tmp5[8];
-		tmp5[0] = xor1(ROUND_ELT(sharedMemory, tmp3, 0, 7, 6, 5, 4, 3, 2, 1), InitVector_RC[2]);
-		tmp5[1] = ROUND_ELT(sharedMemory, tmp3, 1, 0, 7, 6, 5, 4, 3, 2);
-		tmp5[2] = ROUND_ELT(sharedMemory, tmp3, 2, 1, 0, 7, 6, 5, 4, 3);
-		tmp5[3] = ROUND_ELT(sharedMemory, tmp3, 3, 2, 1, 0, 7, 6, 5, 4);
-		tmp5[4] = ROUND_ELT(sharedMemory, tmp3, 4, 3, 2, 1, 0, 7, 6, 5);
-		tmp5[5] = ROUND_ELT(sharedMemory, tmp3, 5, 4, 3, 2, 1, 0, 7, 6);
-		tmp5[6] = ROUND_ELT(sharedMemory, tmp3, 6, 5, 4, 3, 2, 1, 0, 7);
-		tmp5[7] = ROUND_ELT(sharedMemory, tmp3, 7, 6, 5, 4, 3, 2, 1, 0);
+		tmp[0] = xor1(ROUND_ELT(sharedMemory, tmp3, 0, 7, 6, 5, 4, 3, 2, 1), InitVector_RC[2]);
+		tmp[1] = ROUND_ELT(sharedMemory, tmp3, 1, 0, 7, 6, 5, 4, 3, 2);
+		tmp[2] = ROUND_ELT(sharedMemory, tmp3, 2, 1, 0, 7, 6, 5, 4, 3);
+		tmp[3] = ROUND_ELT(sharedMemory, tmp3, 3, 2, 1, 0, 7, 6, 5, 4);
+		tmp[4] = ROUND_ELT(sharedMemory, tmp3, 4, 3, 2, 1, 0, 7, 6, 5);
+		tmp[5] = ROUND_ELT(sharedMemory, tmp3, 5, 4, 3, 2, 1, 0, 7, 6);
+		tmp[6] = ROUND_ELT(sharedMemory, tmp3, 6, 5, 4, 3, 2, 1, 0, 7);
+		tmp[7] = ROUND_ELT(sharedMemory, tmp3, 7, 6, 5, 4, 3, 2, 1, 0);
 
-		d_tmp[threadIdx.x+8]=tmp5[threadIdx.x];
+		d_tmp[threadIdx.x+16]=tmp[threadIdx.x];
 
-		uint64_t tmp6[8];
-		tmp6[0] = xor1(ROUND_ELT(sharedMemory, tmp5, 0, 7, 6, 5, 4, 3, 2, 1), InitVector_RC[3]);
-		tmp6[1] = ROUND_ELT(sharedMemory, tmp5, 1, 0, 7, 6, 5, 4, 3, 2);
-		tmp6[2] = ROUND_ELT(sharedMemory, tmp5, 2, 1, 0, 7, 6, 5, 4, 3);
-		tmp6[3] = ROUND_ELT(sharedMemory, tmp5, 3, 2, 1, 0, 7, 6, 5, 4);
-		tmp6[4] = ROUND_ELT(sharedMemory, tmp5, 4, 3, 2, 1, 0, 7, 6, 5);
-		tmp6[5] = ROUND_ELT(sharedMemory, tmp5, 5, 4, 3, 2, 1, 0, 7, 6);
-		tmp6[6] = ROUND_ELT(sharedMemory, tmp5, 6, 5, 4, 3, 2, 1, 0, 7);
-		tmp6[7] = ROUND_ELT(sharedMemory, tmp5, 7, 6, 5, 4, 3, 2, 1, 0);
+		#pragma unroll 6
+		for(int i=0;i<6;i++){
+			tmp[0+8*((i+1)&1)] = xor1(ROUND_ELT(sharedMemory, &tmp[8*(i&1)], 0, 7, 6, 5, 4, 3, 2, 1), InitVector_RC[3+i]);
+			tmp[1+8*((i+1)&1)] = ROUND_ELT(sharedMemory, &tmp[8*(i&1)], 1, 0, 7, 6, 5, 4, 3, 2);
+			tmp[2+8*((i+1)&1)] = ROUND_ELT(sharedMemory, &tmp[8*(i&1)], 2, 1, 0, 7, 6, 5, 4, 3);
+			tmp[3+8*((i+1)&1)] = ROUND_ELT(sharedMemory, &tmp[8*(i&1)], 3, 2, 1, 0, 7, 6, 5, 4);
+			tmp[4+8*((i+1)&1)] = ROUND_ELT(sharedMemory, &tmp[8*(i&1)], 4, 3, 2, 1, 0, 7, 6, 5);
+			tmp[5+8*((i+1)&1)] = ROUND_ELT(sharedMemory, &tmp[8*(i&1)], 5, 4, 3, 2, 1, 0, 7, 6);
+			tmp[6+8*((i+1)&1)] = ROUND_ELT(sharedMemory, &tmp[8*(i&1)], 6, 5, 4, 3, 2, 1, 0, 7);
+			tmp[7+8*((i+1)&1)] = ROUND_ELT(sharedMemory, &tmp[8*(i&1)], 7, 6, 5, 4, 3, 2, 1, 0);
 
-		d_tmp[threadIdx.x+24]=tmp6[threadIdx.x];
+			d_tmp[threadIdx.x+24+8*i]=tmp[threadIdx.x+8*((i+1)&1)];
+		}
 
-		uint64_t tmp7[8];
-		tmp7[0] = xor1(ROUND_ELT(sharedMemory, tmp6, 0, 7, 6, 5, 4, 3, 2, 1), InitVector_RC[4]);
-		tmp7[1] = ROUND_ELT(sharedMemory, tmp6, 1, 0, 7, 6, 5, 4, 3, 2);
-		tmp7[2] = ROUND_ELT(sharedMemory, tmp6, 2, 1, 0, 7, 6, 5, 4, 3);
-		tmp7[3] = ROUND_ELT(sharedMemory, tmp6, 3, 2, 1, 0, 7, 6, 5, 4);
-		tmp7[4] = ROUND_ELT(sharedMemory, tmp6, 4, 3, 2, 1, 0, 7, 6, 5);
-		tmp7[5] = ROUND_ELT(sharedMemory, tmp6, 5, 4, 3, 2, 1, 0, 7, 6);
-		tmp7[6] = ROUND_ELT(sharedMemory, tmp6, 6, 5, 4, 3, 2, 1, 0, 7);
-		tmp7[7] = ROUND_ELT(sharedMemory, tmp6, 7, 6, 5, 4, 3, 2, 1, 0);
-
-		d_tmp[threadIdx.x+32]=tmp7[threadIdx.x];
-//-------------------
-		uint64_t tmp8[8];
-		tmp8[0] = xor1(ROUND_ELT(sharedMemory, tmp7, 0, 7, 6, 5, 4, 3, 2, 1), InitVector_RC[5]);
-		tmp8[1] = ROUND_ELT(sharedMemory, tmp7, 1, 0, 7, 6, 5, 4, 3, 2);
-		tmp8[2] = ROUND_ELT(sharedMemory, tmp7, 2, 1, 0, 7, 6, 5, 4, 3);
-		tmp8[3] = ROUND_ELT(sharedMemory, tmp7, 3, 2, 1, 0, 7, 6, 5, 4);
-		tmp8[4] = ROUND_ELT(sharedMemory, tmp7, 4, 3, 2, 1, 0, 7, 6, 5);
-		tmp8[5] = ROUND_ELT(sharedMemory, tmp7, 5, 4, 3, 2, 1, 0, 7, 6);
-		tmp8[6] = ROUND_ELT(sharedMemory, tmp7, 6, 5, 4, 3, 2, 1, 0, 7);
-		tmp8[7] = ROUND_ELT(sharedMemory, tmp7, 7, 6, 5, 4, 3, 2, 1, 0);
-
-		d_tmp[threadIdx.x+40]=tmp8[threadIdx.x];
-
-		uint64_t tmp9[8];
-		tmp9[0] = xor1(ROUND_ELT(sharedMemory, tmp8, 0, 7, 6, 5, 4, 3, 2, 1), InitVector_RC[6]);
-		tmp9[1] = ROUND_ELT(sharedMemory, tmp8, 1, 0, 7, 6, 5, 4, 3, 2);
-		tmp9[2] = ROUND_ELT(sharedMemory, tmp8, 2, 1, 0, 7, 6, 5, 4, 3);
-		tmp9[3] = ROUND_ELT(sharedMemory, tmp8, 3, 2, 1, 0, 7, 6, 5, 4);
-		tmp9[4] = ROUND_ELT(sharedMemory, tmp8, 4, 3, 2, 1, 0, 7, 6, 5);
-		tmp9[5] = ROUND_ELT(sharedMemory, tmp8, 5, 4, 3, 2, 1, 0, 7, 6);
-		tmp9[6] = ROUND_ELT(sharedMemory, tmp8, 6, 5, 4, 3, 2, 1, 0, 7);
-		tmp9[7] = ROUND_ELT(sharedMemory, tmp8, 7, 6, 5, 4, 3, 2, 1, 0);
-
-		d_tmp[threadIdx.x+48]=tmp9[threadIdx.x];
-
-		uint64_t tmp10[8];
-		tmp10[0] = xor1(ROUND_ELT(sharedMemory, tmp9, 0, 7, 6, 5, 4, 3, 2, 1), InitVector_RC[7]);
-		tmp10[1] = ROUND_ELT(sharedMemory, tmp9, 1, 0, 7, 6, 5, 4, 3, 2);
-		tmp10[2] = ROUND_ELT(sharedMemory, tmp9, 2, 1, 0, 7, 6, 5, 4, 3);
-		tmp10[3] = ROUND_ELT(sharedMemory, tmp9, 3, 2, 1, 0, 7, 6, 5, 4);
-		tmp10[4] = ROUND_ELT(sharedMemory, tmp9, 4, 3, 2, 1, 0, 7, 6, 5);
-		tmp10[5] = ROUND_ELT(sharedMemory, tmp9, 5, 4, 3, 2, 1, 0, 7, 6);
-		tmp10[6] = ROUND_ELT(sharedMemory, tmp9, 6, 5, 4, 3, 2, 1, 0, 7);
-		tmp10[7] = ROUND_ELT(sharedMemory, tmp9, 7, 6, 5, 4, 3, 2, 1, 0);
-
-
-		d_tmp[threadIdx.x+56]=tmp10[threadIdx.x];
-
-		uint64_t tmp11[8];
-		tmp11[0] = xor1(ROUND_ELT(sharedMemory, tmp10, 0, 7, 6, 5, 4, 3, 2, 1), InitVector_RC[8]);
-		tmp11[1] = ROUND_ELT(sharedMemory, tmp10, 1, 0, 7, 6, 5, 4, 3, 2);
-		tmp11[2] = ROUND_ELT(sharedMemory, tmp10, 2, 1, 0, 7, 6, 5, 4, 3);
-		tmp11[3] = ROUND_ELT(sharedMemory, tmp10, 3, 2, 1, 0, 7, 6, 5, 4);
-		tmp11[4] = ROUND_ELT(sharedMemory, tmp10, 4, 3, 2, 1, 0, 7, 6, 5);
-		tmp11[5] = ROUND_ELT(sharedMemory, tmp10, 5, 4, 3, 2, 1, 0, 7, 6);
-		tmp11[6] = ROUND_ELT(sharedMemory, tmp10, 6, 5, 4, 3, 2, 1, 0, 7);
-		tmp11[7] = ROUND_ELT(sharedMemory, tmp10, 7, 6, 5, 4, 3, 2, 1, 0);
-
-		d_tmp[threadIdx.x+64]=tmp11[threadIdx.x];
-
-		if(threadIdx.x==1){
-			tmp[0]=ROUND_ELT(sharedMemory,tmp11, 3, 2, 1, 0, 7, 6, 5, 4);
-			tmp[1]=ROUND_ELT(sharedMemory,tmp11, 5, 4, 3, 2, 1, 0, 7, 6);
-			tmp[4] = xor3(tmp[0],tmp[1],atLastCalc);
-			d_xtra[threadIdx.x]=tmp[4];
+		if(threadIdx.x==0){
+			d_tmp[1]=h[1];
+			tmp[8]=ROUND_ELT(sharedMemory,&tmp[0], 3, 2, 1, 0, 7, 6, 5, 4);
+			tmp[9]=ROUND_ELT(sharedMemory,&tmp[0], 5, 4, 3, 2, 1, 0, 7, 6);
+			tmp[10] = xor3(tmp[8],tmp[9],atLastCalc);
+			d_tmp[2]=tmp[10];
 		}
 	}
 }
 
-__global__ __launch_bounds__(threadsPerBlock,2)
-void whirlpoolx(uint32_t threads, uint32_t startNounce,uint32_t *resNounce){
+__global__ 
+#if __CUDA_ARCH__ > 210
+ __launch_bounds__(threadsPerBlock,2) 
+#endif
+void whirlpoolx(const uint32_t threads, const uint32_t startNounce,uint32_t *resNounce){
 
 	__shared__ uint64_t sharedMemory[2048];
 	
@@ -416,159 +359,95 @@ void whirlpoolx(uint32_t threads, uint32_t startNounce,uint32_t *resNounce){
 
 	if (thread < threads){
 
-		uint64_t n[8];
-		uint64_t tmp[8];
-		uint32_t nounce = startNounce + thread;
+		uint64_t n[16];
+		uint32_t *n32 = (uint32_t*)n;
+		const uint32_t nounce = startNounce + thread;
 
 
-		n[1] = xor1(REPLACE_HIWORD(c_PaddedMessage80[9], cuda_swab32(nounce)),c_xtra[0]);
+		n[1] = xor1(REPLACE_HIWORD(c_PaddedMessage80[9], cuda_swab32(nounce)),c_tmp[1]);
 
-		uint32_t* n32 = (uint32_t*)&n[0];		
-		n[0]=sharedMemory[__byte_perm(n32[3], 0, 0x4443) + 1792];
-		n[5]=sharedMemory[__byte_perm(n32[3], 0, 0x4440) + 1024];
-		n[6]=sharedMemory[__byte_perm(n32[3], 0, 0x4441) + 1280];
-		n[7]=sharedMemory[__byte_perm(n32[3], 0, 0x4442) + 1536];
-		n[0]=xor1(c_tmp[0],n[0]);
-		n[1]=c_tmp[1];
-		n[2]=c_tmp[2];
-		n[3]=c_tmp[3];
-		n[4]=c_tmp[4];
-		n[5]=xor1(c_tmp[5],n[5]);
-		n[6]=xor1(c_tmp[6],n[6]);
-		n[7]=xor1(c_tmp[7],n[7]);
+		const uint64_t b=xor1(sharedMemory[__byte_perm(n32[3], 0, 0x4443) + 1792],c_tmp[0]);
 
-		tmp[0]=xor3(sharedMemory[__byte_perm(n32[10],0,0x4443)+768],sharedMemory[__byte_perm(n32[12],0,0x4442)+512],sharedMemory[__byte_perm(n32[14],0,0x4441)+256]);
-		tmp[1]=xor3(sharedMemory[__byte_perm(n32[11],0,0x4440)+1024],sharedMemory[__byte_perm(n32[12],0,0x4443)+768],sharedMemory[__byte_perm(n32[14],0,0x4442)+512]);
-		tmp[2]=xor3(sharedMemory[__byte_perm(n32[11],0,0x4441)+1280],sharedMemory[__byte_perm(n32[13],0,0x4440)+1024],sharedMemory[__byte_perm(n32[14],0,0x4443)+768]);
-		tmp[3]=xor3(sharedMemory[__byte_perm(n32[11],0,0x4442)+1536],sharedMemory[__byte_perm(n32[13],0,0x4441)+1280],sharedMemory[__byte_perm(n32[15],0,0x4440)+1024]);
-		tmp[4]=xor3(sharedMemory[__byte_perm(n32[11],0,0x4443)+1792],sharedMemory[__byte_perm(n32[13],0,0x4442)+1536],sharedMemory[__byte_perm(n32[15],0,0x4441)+1280]);
-		tmp[5]=xor3(sharedMemory[__byte_perm(n32[10],0,0x4440)],sharedMemory[__byte_perm(n32[13],0,0x4443)+1792],sharedMemory[__byte_perm(n32[15],0,0x4442)+1536]);
-		tmp[6]=xor3(sharedMemory[__byte_perm(n32[12],0,0x4440)],sharedMemory[__byte_perm(n32[10],0,0x4441)+256],sharedMemory[__byte_perm(n32[15],0,0x4443)+1792]);
-		tmp[7]=xor3(sharedMemory[__byte_perm(n32[14],0,0x4440)],sharedMemory[__byte_perm(n32[12],0,0x4441)+256],sharedMemory[__byte_perm(n32[10],0,0x4442)+ 512]);
+		n[5]=xor1(sharedMemory[__byte_perm(n32[3], 0, 0x4440) + 1024],c_tmp[5]);
+		n[6]=xor1(sharedMemory[__byte_perm(n32[3], 0, 0x4441) + 1280],c_tmp[6]);
+		n[7]=xor1(sharedMemory[__byte_perm(n32[3], 0, 0x4442) + 1536],c_tmp[7]);
 
-		tmp[0]=xor3(sharedMemory[__byte_perm(n32[ 0], 0, 0x4440)],tmp[0],c_tmp[0+16]);
-		tmp[1]=xor3(sharedMemory[__byte_perm(n32[ 0], 0, 0x4441) + 256],tmp[1],c_tmp[1+16]);
-		tmp[2]=xor3(sharedMemory[__byte_perm(n32[ 0], 0, 0x4442) +  512],tmp[2],c_tmp[2+16]);
-		tmp[3]=xor3(sharedMemory[__byte_perm(n32[ 0], 0, 0x4443) + 768],tmp[3],c_tmp[3+16]);
-		tmp[4]=xor3(sharedMemory[__byte_perm(n32[ 1], 0, 0x4440) + 1024],tmp[4],c_tmp[4+16]);
-		tmp[5]=xor3(sharedMemory[__byte_perm(n32[ 1], 0, 0x4441) + 1280],tmp[5],c_tmp[5+16]);
-		tmp[6]=xor3(sharedMemory[__byte_perm(n32[ 1], 0, 0x4442) + 1536],tmp[6],c_tmp[6+16]);
-		tmp[7]=xor3(sharedMemory[__byte_perm(n32[ 1], 0, 0x4443) + 1792],tmp[7],c_tmp[7+16]);
+		n[8]=xor3(sharedMemory[__byte_perm(n32[10],0,0x4443)+768],sharedMemory[__byte_perm(n32[12],0,0x4442)+512],sharedMemory[__byte_perm(n32[14],0,0x4441)+256]);
+		n[9]=xor3(sharedMemory[__byte_perm(n32[11],0,0x4440)+1024],sharedMemory[__byte_perm(n32[12],0,0x4443)+768],sharedMemory[__byte_perm(n32[14],0,0x4442)+512]);
+		n[10]=xor3(sharedMemory[__byte_perm(n32[11],0,0x4441)+1280],sharedMemory[__byte_perm(n32[13],0,0x4440)+1024],sharedMemory[__byte_perm(n32[14],0,0x4443)+768]);
+		n[11]=xor3(sharedMemory[__byte_perm(n32[11],0,0x4442)+1536],sharedMemory[__byte_perm(n32[13],0,0x4441)+1280],sharedMemory[__byte_perm(n32[15],0,0x4440)+1024]);
+		n[12]=xor3(sharedMemory[__byte_perm(n32[11],0,0x4443)+1792],sharedMemory[__byte_perm(n32[13],0,0x4442)+1536],sharedMemory[__byte_perm(n32[15],0,0x4441)+1280]);
+		n[13]=xor3(sharedMemory[__byte_perm(n32[10],0,0x4440)],sharedMemory[__byte_perm(n32[13],0,0x4443)+1792],sharedMemory[__byte_perm(n32[15],0,0x4442)+1536]);
+		n[14]=xor3(sharedMemory[__byte_perm(n32[12],0,0x4440)],sharedMemory[__byte_perm(n32[10],0,0x4441)+256],sharedMemory[__byte_perm(n32[15],0,0x4443)+1792]);
+		n[15]=xor3(sharedMemory[__byte_perm(n32[14],0,0x4440)],sharedMemory[__byte_perm(n32[12],0,0x4441)+256],sharedMemory[__byte_perm(n32[10],0,0x4442)+ 512]);
 
-		n[0]=tmp[0];
-		n[1]=tmp[1];
-		n[2]=tmp[2];
-		n[3]=tmp[3];
-		n[4]=tmp[4];
-		n[5]=tmp[5];
-		n[6]=tmp[6];
-		n[7]=tmp[7];
+		n32 = (uint32_t* __restrict__)&b;
+		n[0]=xor3(sharedMemory[__byte_perm(n32[ 0], 0, 0x4440)	    ], n[ 8],c_tmp[0+8]);
+		n[1]=xor3(sharedMemory[__byte_perm(n32[ 0], 0, 0x4441) + 256], n[ 9],c_tmp[1+8]);
+		n[2]=xor3(sharedMemory[__byte_perm(n32[ 0], 0, 0x4442) + 512], n[10],c_tmp[2+8]);
+		n[3]=xor3(sharedMemory[__byte_perm(n32[ 0], 0, 0x4443) + 768], n[11],c_tmp[3+8]);
+		n[4]=xor3(sharedMemory[__byte_perm(n32[ 1], 0, 0x4440) +1024], n[12],c_tmp[4+8]);
+		n[5]=xor3(sharedMemory[__byte_perm(n32[ 1], 0, 0x4441) +1280], n[13],c_tmp[5+8]);
+		n[6]=xor3(sharedMemory[__byte_perm(n32[ 1], 0, 0x4442) +1536], n[14],c_tmp[6+8]);
+		n[7]=xor3(sharedMemory[__byte_perm(n32[ 1], 0, 0x4443) +1792], n[15],c_tmp[7+8]);
 
-		tmp[0] = xor1(ROUND_ELT(sharedMemory, n, 0, 7, 6, 5, 4, 3, 2, 1), c_tmp[0+8]);
-		tmp[1] = xor1(ROUND_ELT(sharedMemory, n, 1, 0, 7, 6, 5, 4, 3, 2), c_tmp[1+8]);
-		tmp[2] = xor1(ROUND_ELT(sharedMemory, n, 2, 1, 0, 7, 6, 5, 4, 3), c_tmp[2+8]);
-		tmp[3] = xor1(ROUND_ELT(sharedMemory, n, 3, 2, 1, 0, 7, 6, 5, 4), c_tmp[3+8]);
-		tmp[4] = xor1(ROUND_ELT(sharedMemory, n, 4, 3, 2, 1, 0, 7, 6, 5), c_tmp[4+8]);
-		tmp[5] = xor1(ROUND_ELT(sharedMemory, n, 5, 4, 3, 2, 1, 0, 7, 6), c_tmp[5+8]);
-		tmp[6] = xor1(ROUND_ELT(sharedMemory, n, 6, 5, 4, 3, 2, 1, 0, 7), c_tmp[6+8]);
-		tmp[7] = xor1(ROUND_ELT(sharedMemory, n, 7, 6, 5, 4, 3, 2, 1, 0), c_tmp[7+8]);
+		#pragma unroll 7
+		for(int i=2;i<9;i++){
+			n[0+8*((i+1)&1)] = xor1(ROUND_ELT(sharedMemory, &n[8*(i&1)], 0, 7, 6, 5, 4, 3, 2, 1), c_tmp[0+(8*i)]);
+			n[1+8*((i+1)&1)] = xor1(ROUND_ELT(sharedMemory, &n[8*(i&1)], 1, 0, 7, 6, 5, 4, 3, 2), c_tmp[1+(8*i)]);
+			n[2+8*((i+1)&1)] = xor1(ROUND_ELT(sharedMemory, &n[8*(i&1)], 2, 1, 0, 7, 6, 5, 4, 3), c_tmp[2+(8*i)]);
+			n[3+8*((i+1)&1)] = xor1(ROUND_ELT(sharedMemory, &n[8*(i&1)], 3, 2, 1, 0, 7, 6, 5, 4), c_tmp[3+(8*i)]);
+			n[4+8*((i+1)&1)] = xor1(ROUND_ELT(sharedMemory, &n[8*(i&1)], 4, 3, 2, 1, 0, 7, 6, 5), c_tmp[4+(8*i)]);
+			n[5+8*((i+1)&1)] = xor1(ROUND_ELT(sharedMemory, &n[8*(i&1)], 5, 4, 3, 2, 1, 0, 7, 6), c_tmp[5+(8*i)]);
+			n[6+8*((i+1)&1)] = xor1(ROUND_ELT(sharedMemory, &n[8*(i&1)], 6, 5, 4, 3, 2, 1, 0, 7), c_tmp[6+(8*i)]);
+			n[7+8*((i+1)&1)] = xor1(ROUND_ELT(sharedMemory, &n[8*(i&1)], 7, 6, 5, 4, 3, 2, 1, 0), c_tmp[7+(8*i)]);
+		}
 
-		n[0] = xor1(ROUND_ELT(sharedMemory, tmp, 0, 7, 6, 5, 4, 3, 2, 1), c_tmp[0+24]);
-		n[1] = xor1(ROUND_ELT(sharedMemory, tmp, 1, 0, 7, 6, 5, 4, 3, 2), c_tmp[1+24]);
-		n[2] = xor1(ROUND_ELT(sharedMemory, tmp, 2, 1, 0, 7, 6, 5, 4, 3), c_tmp[2+24]);
-		n[3] = xor1(ROUND_ELT(sharedMemory, tmp, 3, 2, 1, 0, 7, 6, 5, 4), c_tmp[3+24]);
-		n[4] = xor1(ROUND_ELT(sharedMemory, tmp, 4, 3, 2, 1, 0, 7, 6, 5), c_tmp[4+24]);
-		n[5] = xor1(ROUND_ELT(sharedMemory, tmp, 5, 4, 3, 2, 1, 0, 7, 6), c_tmp[5+24]);
-		n[6] = xor1(ROUND_ELT(sharedMemory, tmp, 6, 5, 4, 3, 2, 1, 0, 7), c_tmp[6+24]);
-		n[7] = xor1(ROUND_ELT(sharedMemory, tmp, 7, 6, 5, 4, 3, 2, 1, 0), c_tmp[7+24]);
-
-		tmp[0] = xor1(ROUND_ELT(sharedMemory, n, 0, 7, 6, 5, 4, 3, 2, 1), c_tmp[0+32]);
-		tmp[1] = xor1(ROUND_ELT(sharedMemory, n, 1, 0, 7, 6, 5, 4, 3, 2), c_tmp[1+32]);
-		tmp[2] = xor1(ROUND_ELT(sharedMemory, n, 2, 1, 0, 7, 6, 5, 4, 3), c_tmp[2+32]);
-		tmp[3] = xor1(ROUND_ELT(sharedMemory, n, 3, 2, 1, 0, 7, 6, 5, 4), c_tmp[3+32]);
-		tmp[4] = xor1(ROUND_ELT(sharedMemory, n, 4, 3, 2, 1, 0, 7, 6, 5), c_tmp[4+32]);
-		tmp[5] = xor1(ROUND_ELT(sharedMemory, n, 5, 4, 3, 2, 1, 0, 7, 6), c_tmp[5+32]);
-		tmp[6] = xor1(ROUND_ELT(sharedMemory, n, 6, 5, 4, 3, 2, 1, 0, 7), c_tmp[6+32]);
-		tmp[7] = xor1(ROUND_ELT(sharedMemory, n, 7, 6, 5, 4, 3, 2, 1, 0), c_tmp[7+32]);
-
-		n[0] = xor1(ROUND_ELT(sharedMemory, tmp, 0, 7, 6, 5, 4, 3, 2, 1), c_tmp[0+40]);
-		n[1] = xor1(ROUND_ELT(sharedMemory, tmp, 1, 0, 7, 6, 5, 4, 3, 2), c_tmp[1+40]);
-		n[2] = xor1(ROUND_ELT(sharedMemory, tmp, 2, 1, 0, 7, 6, 5, 4, 3), c_tmp[2+40]);
-		n[3] = xor1(ROUND_ELT(sharedMemory, tmp, 3, 2, 1, 0, 7, 6, 5, 4), c_tmp[3+40]);
-		n[4] = xor1(ROUND_ELT(sharedMemory, tmp, 4, 3, 2, 1, 0, 7, 6, 5), c_tmp[4+40]);
-		n[5] = xor1(ROUND_ELT(sharedMemory, tmp, 5, 4, 3, 2, 1, 0, 7, 6), c_tmp[5+40]);
-		n[6] = xor1(ROUND_ELT(sharedMemory, tmp, 6, 5, 4, 3, 2, 1, 0, 7), c_tmp[6+40]);
-		n[7] = xor1(ROUND_ELT(sharedMemory, tmp, 7, 6, 5, 4, 3, 2, 1, 0), c_tmp[7+40]);
-
-		tmp[0] = xor1(ROUND_ELT(sharedMemory, n, 0, 7, 6, 5, 4, 3, 2, 1), c_tmp[0+48]);
-		tmp[1] = xor1(ROUND_ELT(sharedMemory, n, 1, 0, 7, 6, 5, 4, 3, 2), c_tmp[1+48]);
-		tmp[2] = xor1(ROUND_ELT(sharedMemory, n, 2, 1, 0, 7, 6, 5, 4, 3), c_tmp[2+48]);
-		tmp[3] = xor1(ROUND_ELT(sharedMemory, n, 3, 2, 1, 0, 7, 6, 5, 4), c_tmp[3+48]);
-		tmp[4] = xor1(ROUND_ELT(sharedMemory, n, 4, 3, 2, 1, 0, 7, 6, 5), c_tmp[4+48]);
-		tmp[5] = xor1(ROUND_ELT(sharedMemory, n, 5, 4, 3, 2, 1, 0, 7, 6), c_tmp[5+48]);
-		tmp[6] = xor1(ROUND_ELT(sharedMemory, n, 6, 5, 4, 3, 2, 1, 0, 7), c_tmp[6+48]);
-		tmp[7] = xor1(ROUND_ELT(sharedMemory, n, 7, 6, 5, 4, 3, 2, 1, 0), c_tmp[7+48]);
-
-		n[0] = xor1(ROUND_ELT(sharedMemory, tmp, 0, 7, 6, 5, 4, 3, 2, 1), c_tmp[0+56]);
-		n[1] = xor1(ROUND_ELT(sharedMemory, tmp, 1, 0, 7, 6, 5, 4, 3, 2), c_tmp[1+56]);
-		n[2] = xor1(ROUND_ELT(sharedMemory, tmp, 2, 1, 0, 7, 6, 5, 4, 3), c_tmp[2+56]);
-		n[3] = xor1(ROUND_ELT(sharedMemory, tmp, 3, 2, 1, 0, 7, 6, 5, 4), c_tmp[3+56]);
-		n[4] = xor1(ROUND_ELT(sharedMemory, tmp, 4, 3, 2, 1, 0, 7, 6, 5), c_tmp[4+56]);
-		n[5] = xor1(ROUND_ELT(sharedMemory, tmp, 5, 4, 3, 2, 1, 0, 7, 6), c_tmp[5+56]);
-		n[6] = xor1(ROUND_ELT(sharedMemory, tmp, 6, 5, 4, 3, 2, 1, 0, 7), c_tmp[6+56]);
-		n[7] = xor1(ROUND_ELT(sharedMemory, tmp, 7, 6, 5, 4, 3, 2, 1, 0), c_tmp[7+56]);
-
-		tmp[0] = xor1(ROUND_ELT(sharedMemory, n, 0, 7, 6, 5, 4, 3, 2, 1), c_tmp[0+64]);
-		tmp[1] = xor1(ROUND_ELT(sharedMemory, n, 1, 0, 7, 6, 5, 4, 3, 2), c_tmp[1+64]);
-		tmp[2] = xor1(ROUND_ELT(sharedMemory, n, 2, 1, 0, 7, 6, 5, 4, 3), c_tmp[2+64]);
-		tmp[3] = xor1(ROUND_ELT(sharedMemory, n, 3, 2, 1, 0, 7, 6, 5, 4), c_tmp[3+64]);
-		tmp[4] = xor1(ROUND_ELT(sharedMemory, n, 4, 3, 2, 1, 0, 7, 6, 5), c_tmp[4+64]);
-		tmp[5] = xor1(ROUND_ELT(sharedMemory, n, 5, 4, 3, 2, 1, 0, 7, 6), c_tmp[5+64]);
-		tmp[6] = xor1(ROUND_ELT(sharedMemory, n, 6, 5, 4, 3, 2, 1, 0, 7), c_tmp[6+64]);
-		tmp[7] = xor1(ROUND_ELT(sharedMemory, n, 7, 6, 5, 4, 3, 2, 1, 0), c_tmp[7+64]);
-
-		if (xor3(c_xtra[1],ROUND_ELT(sharedMemory, tmp, 3, 2, 1, 0, 7, 6, 5, 4),ROUND_ELT(sharedMemory, tmp, 5, 4, 3, 2, 1, 0, 7, 6)) <= pTarget[3])
+		if (xor3(c_tmp[2],ROUND_ELT(sharedMemory, &n[8],3,2,1,0,7,6,5,4),ROUND_ELT(sharedMemory, &n[8],5,4,3,2,1,0,7,6)) <= pTarget[3])
 			atomicMin(&resNounce[0],nounce);
 	} // thread < threads
 }
 
-__host__ extern void whirlpoolx_cpu_init(int thr_id, int threads)
-{
+__host__ 
+void whirlpoolx_cpu_init(int thr_id, int threads){
+	cudaSetDevice(device_map[thr_id]);
+	cudaSetDeviceFlags(cudaDeviceMapHost);
+	cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);
+	cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte);
+
 	cudaMemcpyToSymbol(InitVector_RC, plain_RC, sizeof(plain_RC), 0, cudaMemcpyHostToDevice);
 	cudaMemcpyToSymbol(mixTob0Tox, plain_T0, sizeof(plain_T0), 0, cudaMemcpyHostToDevice);
-	cudaMalloc(&d_WXNonce[thr_id], sizeof(uint32_t));
-	cudaMallocHost(&d_wxnounce[thr_id], sizeof(uint32_t));
-	cudaMalloc((void **)&d_xtra,8*sizeof(uint64_t));
-	cudaMalloc((void **)&d_tmp,8*9*sizeof(uint64_t));
+	cudaHostAlloc((void**)&d_wxnonce[thr_id],sizeof(uint32_t),cudaHostAllocMapped);
+	cudaHostGetDevicePointer((void**)&d_WXNonce[thr_id],(void*)d_wxnonce[thr_id],0);
+
+	cudaMalloc(&d_tmp[thr_id],8*9*sizeof(uint64_t));
 }
 
-__host__ void whirlpoolx_setBlock_80(void *pdata, const void *ptarget)
-{
+__host__ 
+void whirlpoolx_setBlock_precompute(void *pdata, const void *ptarget,int thr_id){
 	uint64_t PaddedMessage[16];
-	memcpy(PaddedMessage, pdata, 80);
-	memset((uint8_t*)&PaddedMessage+80, 0, 48);
-	*(uint8_t*)(&PaddedMessage+80) = 0x80; /* ending */
-	cudaMemcpyToSymbol(pTarget, ptarget, 4*sizeof(uint64_t), 0, cudaMemcpyHostToDevice);
-	cudaMemcpyToSymbol(c_PaddedMessage80, PaddedMessage, 16*sizeof(uint64_t), 0, cudaMemcpyHostToDevice);
-}
-
-__host__ void whirlpoolx_precompute(){
 	dim3 grid(1);
 	dim3 block(256);
 
-	precomputeX<<<grid, block>>>(8,&d_xtra[0],&d_tmp[0]);
+	memcpy(PaddedMessage, pdata, 80);
+	memset((uint8_t*)&PaddedMessage+80, 0, 48);
+	*(uint8_t*)(&PaddedMessage+80) = 0x80; /* ending */
+
+	cudaMemcpyToSymbol(c_PaddedMessage80, PaddedMessage, 16*sizeof(uint64_t), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(pTarget, ptarget, 4*sizeof(uint64_t), 0, cudaMemcpyHostToDevice);
+
+	precomputeX<<<grid, block>>>(8,d_tmp[thr_id]);
 	cudaThreadSynchronize();
-	cudaMemcpyToSymbol(c_xtra,d_xtra,8*sizeof(uint64_t),0,cudaMemcpyDeviceToDevice);
-	cudaMemcpyToSymbol(c_tmp,d_tmp,8*9*sizeof(uint64_t),0,cudaMemcpyDeviceToDevice);
+
+	cudaMemcpyToSymbol(c_tmp,d_tmp[thr_id],8*9*sizeof(uint64_t),0,cudaMemcpyDeviceToDevice);
 }
-__host__ extern uint32_t cpu_whirlpoolx(int thr_id, uint32_t threads, uint32_t startNounce)
-{
+
+__host__ 
+uint32_t cpu_whirlpoolx(int thr_id, uint32_t threads, uint32_t startNounce){
 	dim3 grid((threads + threadsPerBlock-1) / threadsPerBlock);
 	dim3 block(threadsPerBlock);
-
-	cudaMemset(d_WXNonce[thr_id], 0xff, sizeof(uint32_t));
+	d_wxnonce[thr_id][0]=UINT32_MAX;
 	whirlpoolx<<<grid, block>>>(threads, startNounce,d_WXNonce[thr_id]);
 	cudaThreadSynchronize();
-	cudaMemcpy(d_wxnounce[thr_id], d_WXNonce[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost);
-	return *d_wxnounce[thr_id];
+	return *d_wxnonce[thr_id];
 }

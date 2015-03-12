@@ -272,104 +272,6 @@ void sha256_transform_8way(uint32_t *state, const uint32_t *block, int swap);
 extern int scanhash_sha256d(int thr_id, uint32_t *pdata,
 	const uint32_t *ptarget, uint32_t max_nonce, unsigned long *hashes_done);
 
-extern unsigned char *scrypt_buffer_alloc();
-
-extern int scanhash_deep(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_doom(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_fugue256(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_groestlcoin(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_heavy(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done, uint32_t maxvote, int blocklen);
-
-extern int scanhash_keccak256(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_myriad(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_jackpot(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_quark(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_anime(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_blake256(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done, int8_t blakerounds);
-
-extern int scanhash_fresh(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_lyra2(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_nist5(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_pentablake(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_qubit(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_scrypt(int thr_id, uint32_t *pdata,
-	unsigned char *scratchbuf, const uint32_t *ptarget,
-	uint32_t max_nonce, unsigned long *hashes_done);
-
-extern int scanhash_s3(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_whc(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_x11(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_x13(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_x14(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_x15(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
-extern int scanhash_x17(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
-
 extern int scanhash_whirlpoolx(int thr_id, uint32_t *pdata,
 	const uint32_t *ptarget, uint32_t max_nonce,
 	unsigned long *hashes_done);
@@ -647,31 +549,6 @@ char* atime2str(time_t timer);
 
 void applog_hash(unsigned char *hash);
 void applog_compare_hash(unsigned char *hash, unsigned char *hash2);
-
-void print_hash_tests(void);
-void animehash(void *state, const void *input);
-void blake256hash(void *output, const void *input, int8_t rounds);
-void deephash(void *state, const void *input);
-void doomhash(void *state, const void *input);
-void fresh_hash(void *state, const void *input);
-void fugue256_hash(unsigned char* output, const unsigned char* input, int len);
-void heavycoin_hash(unsigned char* output, const unsigned char* input, int len);
-void keccak256_hash(void *state, const void *input);
-unsigned int jackpothash(void *state, const void *input);
-void groestlhash(void *state, const void *input);
-void lyra2_hash(void *state, const void *input);
-void myriadhash(void *state, const void *input);
-void nist5hash(void *state, const void *input);
-void pentablakehash(void *output, const void *input);
-void quarkhash(void *state, const void *input);
-void qubithash(void *state, const void *input);
-void s3hash(void *output, const void *input);
-void wcoinhash(void *state, const void *input);
-void x11hash(void *output, const void *input);
-void x13hash(void *output, const void *input);
-void x14hash(void *output, const void *input);
-void x15hash(void *output, const void *input);
-void x17hash(void *output, const void *input);
 
 #ifdef __cplusplus
 }

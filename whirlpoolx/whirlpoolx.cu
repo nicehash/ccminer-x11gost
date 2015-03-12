@@ -10,21 +10,17 @@ extern "C"
 
 #include "cuda_helper.h"
 
-static uint32_t *d_hash[MAX_GPUS];
-
 extern void whirlpoolx_cpu_init(int thr_id, int threads);
-extern void whirlpoolx_setBlock_80(void *pdata, const void *ptarget);
+extern void whirlpoolx_setBlock_precompute(void *pdata, const void *ptarget,int thr_id);
 extern uint32_t cpu_whirlpoolx(int thr_id, uint32_t threads, uint32_t startNounce);
-extern void whirlpoolx_precompute();
+extern void whirlpoolx_precompute(int thr_id);
 
 // CPU Hash function
-extern "C" void whirlxHash(void *state, const void *input)
-{
+static void whirlxHash(void *state, const void *input){
 
 	sph_whirlpool_context ctx_whirlpool;
-
-	unsigned char hash[64];
-	unsigned char hash_xored[32];
+	uint32_t hash[16];
+	uint32_t hash_xored[8];
 
 	memset(hash, 0, sizeof hash);
 
@@ -33,8 +29,8 @@ extern "C" void whirlxHash(void *state, const void *input)
 	sph_whirlpool_close(&ctx_whirlpool, hash);
 
     
-	for (uint32_t i = 0; i < 32; i++){
-	        hash_xored[i] = hash[i] ^ hash[i + 16];
+	for (uint32_t i = 0; i < 8; i++){
+	        hash_xored[i] = hash[i] ^ hash[i + 4];
 	}
 	memcpy(state, hash_xored, 32);
 }
@@ -52,11 +48,7 @@ extern "C" int scanhash_whirlpoolx(int thr_id, uint32_t *pdata,const uint32_t *p
 		((uint32_t*)ptarget)[7] = 0x0000ff;
 
 	if (!init[thr_id]) {
-		cudaSetDevice(device_map[thr_id]);
-		// Konstanten kopieren, Speicher belegen
-		cudaMalloc(&d_hash[thr_id], 16 * sizeof(uint32_t) * throughput);
 		whirlpoolx_cpu_init(thr_id, throughput);
-
 		init[thr_id] = true;
 	}
 
@@ -64,8 +56,7 @@ extern "C" int scanhash_whirlpoolx(int thr_id, uint32_t *pdata,const uint32_t *p
 		be32enc(&endiandata[k], ((uint32_t*)pdata)[k]);
 	}
 
-	whirlpoolx_setBlock_80((void*)endiandata, ptarget);
-	whirlpoolx_precompute();
+	whirlpoolx_setBlock_precompute((void*)endiandata, ptarget,thr_id);
 	uint64_t n=pdata[19];
 	uint32_t foundNonce;
 	do {
@@ -83,12 +74,7 @@ extern "C" int scanhash_whirlpoolx(int thr_id, uint32_t *pdata,const uint32_t *p
 
 			if (vhash64[7] <= Htarg && fulltest(vhash64, ptarget)) {
 				int res = 1;
-//				uint32_t secNonce = cuda_check_hash_suppl(thr_id, throughput, pdata[19], d_hash[thr_id], 1);
 				*hashes_done = n - first_nonce + throughput;
-/*				if (secNonce != 0) {
-					pdata[21] = secNonce;
-					res++;
-				}*/
 				pdata[19] = foundNonce;
 				return res;
 			}
