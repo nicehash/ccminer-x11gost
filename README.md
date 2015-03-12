@@ -3,12 +3,8 @@ ccminer
 
 Based on Christian Buchner's &amp; Christian H.'s CUDA project, no more active on github recently.
 
-Fork by tpruvot@github with X14,X15,X17,WHIRL,Blake256,BlakeCoin,Lyra2RE and some others, check the [README.txt](README.txt)
-
-   BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo
+Fork by tpruvot@github. BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo
    [![tip for next commit](https://tip4commit.com/projects/927.svg)](https://tip4commit.com/github/tpruvot/ccminer)
-
-A part of the recent algos were originally wrote by [djm34](https://github.com/djm34).
 
 This variant was tested and built on Linux (ubuntu server 14.04) and VStudio 2013 on Windows 7.
 
