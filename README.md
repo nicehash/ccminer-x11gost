@@ -30,4 +30,4 @@ There is also a [Tutorial for windows](http://cudamining.co.uk/url/tutorials/id/
 
 Whirlpoolx Support Information
 ------------------------------
-http://vanillacoin.net/forums/viewtopic.php?id=553
+https://talk.vanillacoin.net/topic/87/open-source-ccminer-for-nvidia-devices
