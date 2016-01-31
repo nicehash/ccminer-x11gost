@@ -1091,6 +1091,7 @@ config.status:950: creating Makefile
 config.status:950: creating compat/Makefile
 config.status:950: creating compat/jansson/Makefile
 config.status:950: creating cpuminer-config.h
+config.status:1131: cpuminer-config.h is unchanged
 config.status:1179: executing depfiles commands
 
 ## ---------------- ##
@@ -1190,7 +1191,7 @@ libcurl_cv_lib_version_ok=yes
 ## Output variables. ##
 ## ----------------- ##
 
-ACLOCAL='${SHELL} /home/alexis/ccminer_Mine/ccminer/missing aclocal-1.14'
+ACLOCAL='${SHELL} /home/alexis/ccminer_Mine/ccminer_TEMP/missing aclocal-1.14'
 ALLOCA=''
 AMDEPBACKSLASH='\'
 AMDEP_FALSE='#'
@@ -1204,9 +1205,9 @@ ARCH_x86_64_FALSE='#'
 ARCH_x86_64_TRUE=''
 ARCH_x86_FALSE='#'
 ARCH_x86_TRUE=''
-AUTOCONF='${SHELL} /home/alexis/ccminer_Mine/ccminer/missing autoconf'
-AUTOHEADER='${SHELL} /home/alexis/ccminer_Mine/ccminer/missing autoheader'
-AUTOMAKE='${SHELL} /home/alexis/ccminer_Mine/ccminer/missing automake-1.14'
+AUTOCONF='${SHELL} /home/alexis/ccminer_Mine/ccminer_TEMP/missing autoconf'
+AUTOHEADER='${SHELL} /home/alexis/ccminer_Mine/ccminer_TEMP/missing autoheader'
+AUTOMAKE='${SHELL} /home/alexis/ccminer_Mine/ccminer_TEMP/missing automake-1.14'
 AWK='mawk'
 CC='gcc -std=gnu99'
 CCAS='gcc -std=gnu99'
@@ -1250,7 +1251,7 @@ LTLIBOBJS=''
 MAINT='#'
 MAINTAINER_MODE_FALSE=''
 MAINTAINER_MODE_TRUE='#'
-MAKEINFO='${SHELL} /home/alexis/ccminer_Mine/ccminer/missing makeinfo'
+MAKEINFO='${SHELL} /home/alexis/ccminer_Mine/ccminer_TEMP/missing makeinfo'
 MKDIR_P='/bin/mkdir -p'
 NVCC='/usr/local/cuda/bin/nvcc'
 NVML_LIBPATH='libnvidia-ml.so'
@@ -1313,7 +1314,7 @@ host_vendor='unknown'
 htmldir='${docdir}'
 includedir='${prefix}/include'
 infodir='${datarootdir}/info'
-install_sh='${SHELL} /home/alexis/ccminer_Mine/ccminer/install-sh'
+install_sh='${SHELL} /home/alexis/ccminer_Mine/ccminer_TEMP/install-sh'
 libdir='${exec_prefix}/lib'
 libexecdir='${exec_prefix}/libexec'
 localedir='${datarootdir}/locale'

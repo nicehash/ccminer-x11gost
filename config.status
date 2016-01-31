@@ -438,7 +438,7 @@ Copyright (C) 2012 Free Software Foundation, Inc.
 This config.status script is free software; the Free Software Foundation
 gives unlimited permission to copy, distribute and modify it."
 
-ac_pwd='/home/alexis/ccminer_Mine/ccminer'
+ac_pwd='/home/alexis/ccminer_Mine/ccminer_TEMP'
 srcdir='.'
 INSTALL='/usr/bin/install -c'
 MKDIR_P='/bin/mkdir -p'
@@ -697,12 +697,12 @@ S["mkdir_p"]="$(MKDIR_P)"
 S["MKDIR_P"]="/bin/mkdir -p"
 S["INSTALL_STRIP_PROGRAM"]="$(install_sh) -c -s"
 S["STRIP"]=""
-S["install_sh"]="${SHELL} /home/alexis/ccminer_Mine/ccminer/install-sh"
-S["MAKEINFO"]="${SHELL} /home/alexis/ccminer_Mine/ccminer/missing makeinfo"
-S["AUTOHEADER"]="${SHELL} /home/alexis/ccminer_Mine/ccminer/missing autoheader"
-S["AUTOMAKE"]="${SHELL} /home/alexis/ccminer_Mine/ccminer/missing automake-1.14"
-S["AUTOCONF"]="${SHELL} /home/alexis/ccminer_Mine/ccminer/missing autoconf"
-S["ACLOCAL"]="${SHELL} /home/alexis/ccminer_Mine/ccminer/missing aclocal-1.14"
+S["install_sh"]="${SHELL} /home/alexis/ccminer_Mine/ccminer_TEMP/install-sh"
+S["MAKEINFO"]="${SHELL} /home/alexis/ccminer_Mine/ccminer_TEMP/missing makeinfo"
+S["AUTOHEADER"]="${SHELL} /home/alexis/ccminer_Mine/ccminer_TEMP/missing autoheader"
+S["AUTOMAKE"]="${SHELL} /home/alexis/ccminer_Mine/ccminer_TEMP/missing automake-1.14"
+S["AUTOCONF"]="${SHELL} /home/alexis/ccminer_Mine/ccminer_TEMP/missing autoconf"
+S["ACLOCAL"]="${SHELL} /home/alexis/ccminer_Mine/ccminer_TEMP/missing aclocal-1.14"
 S["VERSION"]="1.7.1"
 S["PACKAGE"]="ccminer"
 S["CYGPATH_W"]="echo"
