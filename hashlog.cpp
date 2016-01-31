@@ -18,13 +18,17 @@
 
 /* from miner.h
 struct hashlog_data {
-	uint32_t tm_sent;
+	uint8_t npool;
+	uint8_t pool_type;
 	uint32_t height;
+	uint32_t njobid;
+	uint32_t nonce;
 	uint32_t scanned_from;
 	uint32_t scanned_to;
 	uint32_t last_from;
 	uint32_t tm_add;
 	uint32_t tm_upd;
+	uint32_t tm_sent;
 };
 */
 
@@ -75,6 +79,8 @@ void hashlog_remember_submit(struct work* work, uint32_t nonce)
 	data.height = work->height;
 	data.njobid = (uint32_t) njobid;
 	data.tm_add = data.tm_upd = data.tm_sent = (uint32_t) time(NULL);
+	data.npool = (uint8_t) cur_pooln;
+	data.pool_type = pools[cur_pooln].type;
 	tlastshares[key] = data;
 }
 
@@ -194,7 +200,7 @@ void hashlog_purge_job(char* jobid)
 	int deleted = 0;
 	uint64_t njobid = hextouint(jobid);
 	uint64_t keypfx = (njobid << 32);
-	uint32_t sz = tlastshares.size();
+	uint32_t sz = (uint32_t) tlastshares.size();
 	std::map<uint64_t, hashlog_data>::iterator i = tlastshares.begin();
 	while (i != tlastshares.end()) {
 		if ((keypfx & i->first) == keypfx) {
@@ -215,7 +221,7 @@ void hashlog_purge_old(void)
 {
 	int deleted = 0;
 	uint32_t now = (uint32_t) time(NULL);
-	uint32_t sz = tlastshares.size();
+	uint32_t sz = (uint32_t) tlastshares.size();
 	std::map<uint64_t, hashlog_data>::iterator i = tlastshares.begin();
 	while (i != tlastshares.end()) {
 		if ((now - i->second.tm_sent) > LOG_PURGE_TIMEOUT) {
@@ -242,7 +248,7 @@ void hashlog_purge_all(void)
  */
 void hashlog_getmeminfo(uint64_t *mem, uint32_t *records)
 {
-	(*records) = tlastshares.size();
+	(*records) = (uint32_t) tlastshares.size();
 	(*mem) = (*records) * sizeof(hashlog_data);
 }
 

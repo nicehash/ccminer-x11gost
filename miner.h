@@ -39,9 +39,6 @@ extern "C" {
 #  include <malloc.h>
 #  define alloca _alloca
 # elif !defined HAVE_ALLOCA
-#  ifdef  __cplusplus
-extern "C"
-#  endif
 void *alloca (size_t);
 # endif
 #endif
@@ -245,9 +242,13 @@ void aligned_free(void *ptr);
 
 #if JANSSON_MAJOR_VERSION >= 2
 #define JSON_LOADS(str, err_ptr) json_loads((str), 0, (err_ptr))
+#define JSON_LOADF(str, err_ptr) json_load_file((str), 0, (err_ptr))
 #else
 #define JSON_LOADS(str, err_ptr) json_loads((str), (err_ptr))
+#define JSON_LOADF(str, err_ptr) json_load_file((str), (err_ptr))
 #endif
+
+json_t * json_load_url(char* cfg_url, json_error_t *err);
 
 #define USER_AGENT PACKAGE_NAME "/" PACKAGE_VERSION
 
@@ -255,26 +256,21 @@ void sha256_init(uint32_t *state);
 void sha256_transform(uint32_t *state, const uint32_t *block, int swap);
 void sha256d(unsigned char *hash, const unsigned char *data, int len);
 
-#if defined(__ARM_NEON__) || defined(__i386__) || defined(__x86_64__)
 #define HAVE_SHA256_4WAY 0
-int sha256_use_4way();
-void sha256_init_4way(uint32_t *state);
-void sha256_transform_4way(uint32_t *state, const uint32_t *block, int swap);
-#endif
-
-#if defined(__x86_64__) && defined(USE_AVX2)
 #define HAVE_SHA256_8WAY 0
-int sha256_use_8way();
-void sha256_init_8way(uint32_t *state);
-void sha256_transform_8way(uint32_t *state, const uint32_t *block, int swap);
-#endif
 
-extern int scanhash_sha256d(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce, unsigned long *hashes_done);
+struct work;
 
-extern int scanhash_whirlpoolx(int thr_id, uint32_t *pdata,
-	const uint32_t *ptarget, uint32_t max_nonce,
-	unsigned long *hashes_done);
+extern int scanhash_blake256(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
+extern int scanhash_whirlpoolx(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
+extern int scanhash_sha256d(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done);
+
+/* free device allocated memory per algo */
+void algo_free_all(int thr_id);
+
+extern void free_blake256(int thr_id);
+extern void free_whirlx(int thr_id);
+//extern void free_sha256d(int thr_id);
 
 /* api related */
 void *api_thread(void *userdata);
@@ -296,7 +292,7 @@ struct cgpu_info {
 	int gpu_clock;
 	int gpu_memclock;
 	size_t gpu_mem;
-	uint32_t gpu_usage;
+	uint32_t gpu_power;
 	double gpu_vddc;
 	int16_t gpu_pstate;
 	int16_t gpu_bus;
@@ -323,16 +319,25 @@ struct stats_data {
 	uint32_t tm_stat;
 	uint32_t hashcount;
 	uint32_t height;
+
 	double difficulty;
 	double hashrate;
+
 	uint8_t thr_id;
 	uint8_t gpu_id;
 	uint8_t hashfound;
 	uint8_t ignored;
+
+	uint8_t npool;
+	uint8_t pool_type;
+	uint16_t align;
 };
 
 struct hashlog_data {
-	uint32_t tm_sent;
+	uint8_t npool;
+	uint8_t pool_type;
+	uint16_t align;
+
 	uint32_t height;
 	uint32_t njobid;
 	uint32_t nonce;
@@ -341,6 +346,7 @@ struct hashlog_data {
 	uint32_t last_from;
 	uint32_t tm_add;
 	uint32_t tm_upd;
+	uint32_t tm_sent;
 };
 
 /* end of api */
@@ -353,17 +359,32 @@ struct thr_info {
 };
 
 struct work_restart {
-	volatile unsigned long	restart;
-	char			padding[128 - sizeof(unsigned long)];
+	/* volatile to modify accross threads (vstudio thing) */
+	volatile uint32_t restart;
+	char padding[128 - sizeof(uint32_t)];
 };
+
+#ifdef HAVE_GETOPT_LONG
+#include <getopt.h>
+#else
+struct option {
+	const char *name;
+	int has_arg;
+	int *flag;
+	int val;
+};
+#endif
+extern int options_count();
 
 extern bool opt_benchmark;
 extern bool opt_debug;
 extern bool opt_quiet;
 extern bool opt_protocol;
+extern bool opt_showdiff;
 extern bool opt_tracegpu;
 extern int opt_n_threads;
 extern int active_gpus;
+extern int gpu_threads;
 extern int opt_timeout;
 extern bool want_longpoll;
 extern bool have_longpoll;
@@ -374,23 +395,44 @@ extern char *opt_proxy;
 extern long opt_proxy_type;
 extern bool use_syslog;
 extern bool use_colors;
+extern int use_pok;
 extern pthread_mutex_t applog_lock;
 extern struct thr_info *thr_info;
 extern int longpoll_thr_id;
 extern int stratum_thr_id;
 extern int api_thr_id;
+extern volatile bool abort_flag;
 extern struct work_restart *work_restart;
 extern bool opt_trust_pool;
 extern uint16_t opt_vote;
 
 extern uint64_t global_hashrate;
-extern double   global_diff;
+extern uint64_t net_hashrate;
+extern double net_diff;
+extern double stratum_diff;
 
 #define MAX_GPUS 16
 extern char* device_name[MAX_GPUS];
 extern short device_map[MAX_GPUS];
 extern long  device_sm[MAX_GPUS];
 extern uint32_t gpus_intensity[MAX_GPUS];
+extern int opt_cudaschedule;
+
+// cuda.cpp
+int cuda_num_devices();
+void cuda_devicenames();
+void cuda_reset_device(int thr_id, bool *init);
+void cuda_shutdown();
+int cuda_finddevice(char *name);
+void cuda_print_devices();
+int cuda_available_memory(int thr_id);
+
+uint32_t cuda_default_throughput(int thr_id, uint32_t defcount);
+#define device_intensity(t,f,d) cuda_default_throughput(t,d)
+
+void cuda_log_lasterror(int thr_id, const char* func, int line);
+void cuda_clear_lasterror();
+#define CUDA_LOG_ERROR() cuda_log_lasterror(thr_id, __func__, __LINE__)
 
 #define CL_N    "\x1B[0m"
 #define CL_RED  "\x1B[31m"
@@ -425,18 +467,33 @@ extern uint32_t gpus_intensity[MAX_GPUS];
 
 extern void format_hashrate(double hashrate, char *output);
 extern void applog(int prio, const char *fmt, ...);
+extern void gpulog(int prio, int thr_id, const char *fmt, ...);
 void get_defconfig_path(char *out, size_t bufsize, char *argv0);
-extern json_t *json_rpc_call(CURL *curl, const char *url, const char *userpass,
-	const char *rpc_req, bool, bool, int *);
 extern void cbin2hex(char *out, const char *in, size_t len);
 extern char *bin2hex(const unsigned char *in, size_t len);
 extern bool hex2bin(unsigned char *p, const char *hexstr, size_t len);
 extern int timeval_subtract(struct timeval *result, struct timeval *x,
 	struct timeval *y);
 extern bool fulltest(const uint32_t *hash, const uint32_t *target);
-extern void diff_to_target(uint32_t *target, double diff);
+void diff_to_target(uint32_t* target, double diff);
+void work_set_target(struct work* work, double diff);
+double target_to_diff(uint32_t* target);
 extern void get_currentalgo(char* buf, int sz);
-extern uint32_t device_intensity(int thr_id, const char *func, uint32_t defcount);
+
+// bignum
+double bn_convert_nbits(const uint32_t nbits);
+void bn_nbits_to_uchar(const uint32_t nBits, uchar *target);
+double bn_hash_target_ratio(uint32_t* hash, uint32_t* target);
+void bn_store_hash_target_ratio(uint32_t* hash, uint32_t* target, struct work* work);
+void work_set_target_ratio(struct work* work, uint32_t* hash);
+
+// bench
+extern int bench_algo;
+void bench_init(int threads);
+void bench_free();
+bool bench_algo_switch_next(int thr_id);
+void bench_set_throughput(int thr_id, uint32_t throughput);
+void bench_display_results();
 
 struct stratum_job {
 	char *job_id;
@@ -464,23 +521,29 @@ struct stratum_ctx {
 	curl_socket_t sock;
 	size_t sockbuf_size;
 	char *sockbuf;
-	pthread_mutex_t sock_lock;
 
 	double next_diff;
+	double sharediff;
 
 	char *session_id;
 	size_t xnonce1_size;
 	unsigned char *xnonce1;
 	size_t xnonce2_size;
 	struct stratum_job job;
-	pthread_mutex_t work_lock;
 
 	struct timeval tv_submit;
 	uint32_t answer_msec;
-	uint32_t disconnects;
+	int pooln;
 	time_t tm_connected;
 
 	int srvtime_diff;
+};
+
+#define POK_MAX_TXS   4
+#define POK_MAX_TX_SZ 16384U
+struct tx {
+	uint8_t data[POK_MAX_TX_SZ];
+	uint32_t len;
 };
 
 struct work {
@@ -497,12 +560,84 @@ struct work {
 		uint64_t u64[1];
 	} noncerange;
 
-	double difficulty;
+	double targetdiff;
+	double shareratio;
+	double sharediff;
 	uint32_t height;
+	uint8_t  pooln;
 
 	uint32_t scanned_from;
 	uint32_t scanned_to;
+
+	/* pok getwork txs */
+	uint32_t tx_count;
+	struct tx txs[POK_MAX_TXS];
 };
+
+#define POK_BOOL_MASK 0x00008000
+#define POK_DATA_MASK 0xFFFF0000
+
+
+#define MAX_POOLS 8
+struct pool_infos {
+	uint8_t id;
+#define POOL_UNUSED   0
+#define POOL_GETWORK  1
+#define POOL_STRATUM  2
+#define POOL_LONGPOLL 4
+	uint8_t type;
+#define POOL_ST_DEFINED 1
+#define POOL_ST_VALID 2
+#define POOL_ST_DISABLED 4
+#define POOL_ST_REMOVED 8
+	uint16_t status;
+	int algo;
+	char name[64];
+	// credentials
+	char url[256];
+	char short_url[64];
+	char user[64];
+	char pass[128];
+	// config options
+	double max_diff;
+	double max_rate;
+	int time_limit;
+	int scantime;
+	// connection
+	struct stratum_ctx stratum;
+	uint8_t allow_gbt;
+	uint8_t allow_mininginfo;
+	uint16_t check_dups; // 16_t for align
+	int retries;
+	int fail_pause;
+	int timeout;
+	// stats
+	uint32_t work_time;
+	uint32_t wait_time;
+	uint32_t accepted_count;
+	uint32_t rejected_count;
+	uint32_t solved_count;
+	time_t last_share_time;
+	double best_share;
+	uint32_t disconnects;
+};
+
+extern struct pool_infos pools[MAX_POOLS];
+extern int num_pools;
+extern volatile int cur_pooln;
+
+void pool_init_defaults(void);
+void pool_set_creds(int pooln);
+void pool_set_attr(int pooln, const char* key, char* arg);
+bool pool_switch_url(char *params);
+bool pool_switch(int thr_id, int pooln);
+bool pool_switch_next(int thr_id);
+int pool_get_first_valid(int startfrom);
+bool parse_pool_array(json_t *obj);
+void pool_dump_infos(void);
+
+json_t * json_rpc_call_pool(CURL *curl, struct pool_infos*,const char *req, bool lp_scan, bool lp, int *err);
+json_t * json_rpc_longpoll(CURL *curl, char *lp_url, struct pool_infos*,const char *req, int *err);
 
 bool stratum_socket_full(struct stratum_ctx *sctx, int timeout);
 bool stratum_send_line(struct stratum_ctx *sctx, char *s);
@@ -512,6 +647,7 @@ void stratum_disconnect(struct stratum_ctx *sctx);
 bool stratum_subscribe(struct stratum_ctx *sctx);
 bool stratum_authorize(struct stratum_ctx *sctx, const char *user, const char *pass);
 bool stratum_handle_method(struct stratum_ctx *sctx, const char *s);
+void stratum_free_job(struct stratum_ctx *sctx);
 
 void hashlog_remember_submit(struct work* work, uint32_t nonce);
 void hashlog_remember_scan_range(struct work* work);
@@ -527,6 +663,7 @@ void hashlog_getmeminfo(uint64_t *mem, uint32_t *records);
 
 void stats_remember_speed(int thr_id, uint32_t hashcount, double hashrate, uint8_t found, uint32_t height);
 double stats_get_speed(int thr_id, double def_speed);
+double stats_get_gpu_speed(int gpu_id);
 int  stats_get_history(int thr_id, struct stats_data *data, int max_records);
 void stats_purge_old(void);
 void stats_purge_all(void);
@@ -541,14 +678,28 @@ extern void *tq_pop(struct thread_q *tq, const struct timespec *abstime);
 extern void tq_freeze(struct thread_q *tq);
 extern void tq_thaw(struct thread_q *tq);
 
+#define EXIT_CODE_OK            0
+#define EXIT_CODE_USAGE         1
+#define EXIT_CODE_POOL_TIMEOUT  2
+#define EXIT_CODE_SW_INIT_ERROR 3
+#define EXIT_CODE_CUDA_NODEVICE 4
+#define EXIT_CODE_CUDA_ERROR    5
+#define EXIT_CODE_TIME_LIMIT    0
+#define EXIT_CODE_KILLED        7
+
 void parse_arg(int key, char *arg);
 void proper_exit(int reason);
+void restart_threads(void);
 
 size_t time2str(char* buf, time_t timer);
 char* atime2str(time_t timer);
 
 void applog_hash(unsigned char *hash);
 void applog_compare_hash(unsigned char *hash, unsigned char *hash2);
+
+void print_hash_tests(void);
+void blake256hash(void *output, const void *input);
+void whirlxHash(void *state, const void *input);
 
 #ifdef __cplusplus
 }

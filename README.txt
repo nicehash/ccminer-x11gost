@@ -1,16 +1,15 @@
 
-ccMiner release 1.5.3-tpruvot (11 Feb 2015) - "Default Config"
+ccMiner release 1.7.1 (Jan 2015) "Sibcoin & Whirlpool midstate"
 ---------------------------------------------------------------
 
 ***************************************************************
-If you find this tool useful and like to support its continued 
+If you find this tool useful and like to support its continuous
           development, then consider a donation.
 
 tpruvot@github:
-  BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo
+  BTC  : 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo
   DRK  : XeVrkPrWB7pDbdFLfKhF1Z3xpqhsx6wkH3
-  NEOS : NaEcVrdzoCWHUYXb7X8QoafoKS9UV69Yk4
-  XST  : S9TqZucWgT6ajZLDBxQnHUtmkotCEHn9z9
+  ZRC  : ZEcubH2xp2mpuwxMjy7wZThr5AzLGu3mqT
 
 DJM34:
   BTC donation address: 1NENYmxwZGHsKFmyjTc5WferTn5VTFb7Ze
@@ -25,7 +24,31 @@ cbuchner v1.2:
 
 This is a CUDA accelerated mining application which handle :
 
-whirlpoolx (Vanilla coin)
+HeavyCoin & MjollnirCoin
+FugueCoin
+GroestlCoin & Myriad-Groestl
+JackpotCoin
+QuarkCoin family & AnimeCoin
+TalkCoin
+DarkCoin and other X11 coins
+Chaincoin and Flaxscript (C11)
+Saffroncoin blake (256 14-rounds)
+BlakeCoin (256 8-rounds)
+Midnight (BMW 256)
+Qubit (Digibyte, ...)
+Luffa (Joincoin)
+Keccak (Maxcoin)
+Pentablake (Blake 512 x5)
+1Coin Triple S
+Neoscrypt (FeatherCoin)
+Scrypt and Scrypt:N
+Scrypt-Jane (Chacha)
+Sibcoin (sib)
+Skein (Skein + SHA)
+Woodcoin (Double Skein)
+Vanilla (Blake256 8-rounds - double sha256)
+Vertcoin Lyra2RE
+Ziftrcoin (ZR5)
 
 where some of these coins have a VERY NOTABLE nVidia advantage
 over competing AMD (OpenCL Only) implementations.
@@ -40,21 +63,60 @@ that the most of our comments are in german.
 
 >>> Command Line Interface <<<
 
-This code is based on the pooler cpuminer 2.3.2 release and inherits
+This code is based on the pooler cpuminer and inherits
 its command line interface and options.
 
   -a, --algo=ALGO       specify the algorithm to use
-                              whirlpoolx
+                          blake       use to mine Saffroncoin (Blake 256)
+                          blakecoin   use to mine Old Blake 256
+                          bmw         use to mine Midnight
+                          c11/flax    use to mine Chaincoin and Flax
+                          deep        use to mine Deepcoin
+                          dmd-gr      use to mine Diamond-Groestl
+                          fresh       use to mine Freshcoin
+                          fugue256    use to mine Fuguecoin
+                          groestl     use to mine Groestlcoin
+                          heavy       use to mine Heavycoin
+                          jackpot     use to mine Jackpotcoin
+                          keccak      use to mine Maxcoin
+                          luffa       use to mine Joincoin
+                          lyra2       use to mine Vertcoin
+                          mjollnir    use to mine Mjollnircoin
+                          myr-gr      use to mine Myriad-Groest
+                          neoscrypt   use to mine FeatherCoin
+                          nist5       use to mine TalkCoin
+                          penta       use to mine Joincoin / Pentablake
+                          quark       use to mine Quarkcoin
+                          qubit       use to mine Qubit
+                          scrypt      use to mine Scrypt coins
+                          scrypt:N    use to mine Scrypt-N (:10 for 2048 iterations)
+                          scrypt-jane use to mine Chacha coins like Cache and Ultracoin
+                          s3          use to mine 1coin
+                          sib         use to mine Sibcoin
+                          skein       use to mine Skeincoin
+                          skein2      use to mine Woodcoin
+                          x11         use to mine DarkCoin
+                          x14         use to mine X14Coin
+                          x15         use to mine Halcyon
+                          x17         use to mine X17
+                          x17         use to mine X17
+                          vanilla     use to mine Vanilla (Blake256)
+                          whirlpool   use to mine Joincoin
+                          whirlpoolx  use to mine Vanilla (Whirlpoolx)
+                          zr5         use to mine ZiftrCoin
 
   -d, --devices         gives a comma separated list of CUDA device IDs
                         to operate on. Device IDs start counting from 0!
                         Alternatively give string names of your card like
                         gtx780ti or gt640#2 (matching 2nd gt640 in the PC).
 
-  -i, --intensity       GPU threads per call 8-31 (default: 0=auto)
-                        Decimals are allowed for fine tuning
-  -f, --diff            Divide difficulty by this factor (std is 1)
-  -v, --vote            Heavycoin block vote (default: 512)
+  -i, --intensity=N[,N] GPU threads per call 8-25 (2^N + F, default: 0=auto)
+                        Decimals and multiple values are allowed for fine tuning
+      --cuda-schedule   Set device threads scheduling mode (default: auto)
+  -f, --diff-factor     Divide difficulty by this factor (default 1.0)
+  -m, --diff-multiplier Multiply difficulty by this value (default 1.0)
+      --vote=VOTE       block reward vote (for HeavyCoin)
+      --trust-pool      trust the max block reward vote (maxvote) sent by the pool
   -o, --url=URL         URL of mining server
   -O, --userpass=U:P    username:password pair for mining server
   -u, --user=USERNAME   username for mining server
@@ -65,25 +127,52 @@ its command line interface and options.
   -r, --retries=N       number of times to retry if a network call fails
                           (default: retry indefinitely)
   -R, --retry-pause=N   time to pause between retries, in seconds (default: 15)
-  -T, --timeout=N       network timeout, in seconds (default: 270)
+      --time-limit      maximum time [s] to mine before exiting the program.
+  -T, --timeout=N       network timeout, in seconds (default: 300)
   -s, --scantime=N      upper bound on time spent scanning current work when
                         long polling is unavailable, in seconds (default: 5)
+  -n, --ndevs           list cuda devices
   -N, --statsavg        number of samples used to display hashrate (default: 30)
       --no-gbt          disable getblocktemplate support (height check in solo)
       --no-longpoll     disable X-Long-Polling support
       --no-stratum      disable X-Stratum support
   -q, --quiet           disable per-thread hashmeter output
+      --no-color        disable colored output
   -D, --debug           enable debug output
   -P, --protocol-dump   verbose dump of protocol-level activities
   -b, --api-bind        IP/Port for the miner API (default: 127.0.0.1:4068)
+      --api-remote      Allow remote control
+      --max-temp=N      Only mine if gpu temp is less than specified value
+      --max-rate=N[KMG] Only mine if net hashrate is less than specified value
+      --max-diff=N      Only mine if net difficulty is less than specified value
+      --pstate=0        will force the Geforce 9xx to run in P0 P-State
+      --plimit=150W     set the gpu power limit, allow multiple values for N cards
+      --keep-clocks     prevent reset clocks and/or power limit on exit
+      --show-diff       display submitted block and net difficulty
+  -B, --background      run the miner in the background
       --benchmark       run in offline benchmark mode
       --cputest         debug hashes from cpu algorithms
       --cpu-affinity    set process affinity to specific cpu core(s) mask
       --cpu-priority    set process priority (default: 0 idle, 2 normal to 5 highest)
   -c, --config=FILE     load a JSON-format configuration file
-      --no-color        disable colored console output
+                        can be from an url with the http:// prefix
   -V, --version         display version information and exit
   -h, --help            display this help text and exit
+
+
+Scrypt specific options:
+  -l, --launch-config   gives the launch configuration for each kernel
+                        in a comma separated list, one per device.
+      --interactive     comma separated list of flags (0/1) specifying
+                        which of the CUDA device you need to run at inter-
+                        active frame rates (because it drives a display).
+  -L, --lookup-gap      Divides the per-hash memory requirement by this factor
+                        by storing only every N'th value in the scratchpad.
+                        Default is 1.
+      --texture-cache   comma separated list of flags (0/1/2) specifying
+                        which of the CUDA devices shall use the texture
+                        cache for mining. Kepler devices may profit.
+      --no-autotune     disable auto-tuning of kernel launch parameters
 
 
 >>> Examples <<<
@@ -109,11 +198,20 @@ Example for Groestlcoin solo mining
     ccminer -q -s 1 -a groestl -o http://127.0.0.1:1441/ -u USERNAME -p PASSWORD
 
 
+Example for Scrypt-N (2048) on Nicehash
+    ccminer -a scrypt:10 -o stratum+tcp://stratum.nicehash.com:3335 -u 3EujYFcoBzWvpUEvbe3obEG95mBuU88QBD -p x
+
 For solo-mining you typically use -o http://127.0.0.1:xxxx where xxxx represents
 the rpcport number specified in your wallet's .conf file and you have to pass the same username
 and password with -O (or -u -p) as specified in the wallet config.
 
 The wallet must also be started with the -server option and/or with the server=1 flag in the .conf file
+
+>>> Configuration files <<<
+
+With the -c parameter you can use a json config file to set your prefered settings.
+An example is present in source tree, and is also the default one when no command line parameters are given.
+This allow you to run the miner without batch/script.
 
 
 >>> API and Monitoring <<<
@@ -132,12 +230,83 @@ I plan to add a json format later, if requests are formatted in json too..
 >>> Additional Notes <<<
 
 This code should be running on nVidia GPUs ranging from compute capability
-2.1 up to compute capability 5.2.
+3.0 up to compute capability 5.2. Support for Compute 2.0 has been dropped
+so we can more efficiently implement new algorithms using the latest hardware
+features.
 
 >>> RELEASE HISTORY <<<
-  Somewhere in march 2015
-                    forked and added whirlpoolx algo
-                    dropped minimum compute capability to 2.1
+
+  Jan. 26th 2015  v1.7.1
+                  Implement sib algo (X11 + Russian Streebog-512/GOST)
+                  Whirlpool speed x2 with the midstate precompute
+                  Small bug fixes about device ids mapping (and vendor names)
+                  Add Vanilla algo (Blake256 8-rounds - double sha256)
+
+  Nov. 06th 2015  v1.7
+                  Improve old devices compatibility (x11, lyra2v2, quark, qubit...)
+                  Add windows support for SM 2.1 and drop SM 3.5 (x86)
+                  Improve lyra2 (v1/v2) cuda implementations
+                  Improve most common algos on SM5+ with sp blake kernel
+                  Restore whirlpool algo (and whirlcoin variant)
+                  Prepare algo/pool switch ability, trivial method
+                  Add --benchmark alone to run a benchmark for all algos
+                  Add --cuda-schedule parameter
+                  Add --show-diff parameter, which display shares diff,
+                    and is able to detect real solved blocks on pools.
+
+  Aug. 28th 2015  v1.6.6
+                  Allow to load remote config with curl (-c http://...)
+                  Add Lyra2REv2 algo (Vertcoin/Zoom)
+                  Restore WhirlpoolX algo (VNL)
+                  Drop Animecoin support
+                  Add bmw (Midnight) algo
+
+  July 06th 2015  v1.6.5-C11
+                  Nvml api power limits
+                  Add chaincoin c11 algo (used by Flaxscript too)
+                  Remove pluck algo
+
+  June 23th 2015  v1.6.5
+                  Handle Ziftrcoin PoK solo mining
+                  Basic compatibility with CUDA 7.0 (generally slower hashrate)
+                  Show gpus vendor names on linux (windows test branch is pciutils)
+                  Remove -v and -m short params specific to heavycoin
+                  Add --diff-multiplier (-m) and rename --diff to --diff-factor (-f)
+                  First steps to handle nvml application clocks and P0 on the GTX9xx
+                  Various improvements on multipool and cmdline parameters
+                  Optimize a bit qubit, deep, luffa, x11 and quark algos
+
+  May 26th 2015   v1.6.4
+                  Implement multi-pool support (failover and time rotate)
+                    try "ccminer -c pools.conf" to test the sample config
+                  Update the API to allow remote pool switching and pool stats
+                  Auto bind the api port to the first available when using default
+                  Try to compute network difficulty on pools too (for most algos)
+                  Drop Whirlpool and whirpoolx algos, no more used...
+
+  May 15th 2015   v1.6.3
+                  Import and adapt Neoscrypt from djm34 work (SM 5+ only)
+                  Conditional mining options based on gpu temp, network diff and rate
+                  background option implementation for windows too
+                  "Multithreaded" devices (-d 0,0) intensity and stats changes
+                  SM5+ Optimisation of skein based on sp/klaus method (+20%)
+
+  Apr. 21th 2015  v1.6.2
+                  Import Scrypt, Scrypt:N and Scrypt-jane from Cudaminer
+                  Add the --time-limit command line parameter
+
+  Apr. 14th 2015  v1.6.1
+                  Add the Double Skein Algo for Woodcoin
+                  Skein/Skein2 SM 3.0 devices support
+
+  Mar. 27th 2015  v1.6.0
+                  Add the ZR5 Algo for Ziftcoin
+                  Implement Skeincoin algo (skein + sha)
+                  Import pluck (djm34) and whirlpoolx (alexis78) algos
+                  Hashrate units based on hashing rate values (Hs/kHs/MHs/GHs)
+                  Default config file (also help to debug without command line)
+                  Various small fixes
+
   Feb. 11th 2015  v1.5.3
                   Fix anime algo
                   Allow a default config file in user or ccminer folder
@@ -286,10 +455,10 @@ Notable contributors to this application are:
 
 Christian Buchner, Christian H. (Germany): Initial CUDA implementation
 
-djm34, tsiv, sp for cuda algos implementation and optimisation
+djm34, tsiv, sp and klausT for cuda algos implementation and optimisation
 
-Tanguy Pruvot : 750Ti tuning, blake, colors, general code cleanup/opts
-                API monitoring, linux Config/Makefile and vstudio stuff...
+Tanguy Pruvot : 750Ti tuning, blake, colors, zr5, skein, general code cleanup
+                API monitoring, linux Config/Makefile and vstudio libs...
 
 and also many thanks to anyone else who contributed to the original
 cpuminer application (Jeff Garzik, pooler), it's original HVC-fork

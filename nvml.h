@@ -66,6 +66,20 @@ enum nvmlClockType_t {
 	NVML_CLOCK_MEM = 2
 };
 
+enum nvmlPcieUtilCounter_t {
+	NVML_PCIE_UTIL_TX_BYTES = 0,
+	NVML_PCIE_UTIL_RX_BYTES = 1,
+	NVML_PCIE_UTIL_COUNT
+};
+
+enum nvmlValueType_t {
+	NVML_VALUE_TYPE_DOUBLE = 0,
+	NVML_VALUE_TYPE_UNSIGNED_INT = 1,
+	NVML_VALUE_TYPE_UNSIGNED_LONG = 2,
+	NVML_VALUE_TYPE_UNSIGNED_LONG_LONG = 3,
+	NVML_VALUE_TYPE_COUNT
+};
+
 #define NVML_DEVICE_SERIAL_BUFFER_SIZE 30
 #define NVML_DEVICE_UUID_BUFFER_SIZE 80
 #define NVML_DEVICE_VBIOS_VERSION_BUFFER_SIZE 32
@@ -94,8 +108,20 @@ typedef struct {
 	nvmlReturn_t (*nvmlDeviceGetDefaultApplicationsClock)(nvmlDevice_t, nvmlClockType_t, unsigned int *);
 	nvmlReturn_t (*nvmlDeviceGetApplicationsClock)(nvmlDevice_t, nvmlClockType_t, unsigned int *);
 	nvmlReturn_t (*nvmlDeviceSetApplicationsClocks)(nvmlDevice_t, unsigned int, unsigned int);
+	nvmlReturn_t (*nvmlDeviceResetApplicationsClocks)(nvmlDevice_t);
+	nvmlReturn_t (*nvmlDeviceGetSupportedGraphicsClocks)(nvmlDevice_t, uint32_t mem, uint32_t *num, uint32_t *arr);
+	nvmlReturn_t (*nvmlDeviceGetSupportedMemoryClocks)(nvmlDevice_t, unsigned int *count, unsigned int *clocksMHz);
 	nvmlReturn_t (*nvmlDeviceGetClockInfo)(nvmlDevice_t, nvmlClockType_t, unsigned int *);
+	nvmlReturn_t (*nvmlDeviceGetMaxClockInfo)(nvmlDevice_t, nvmlClockType_t, unsigned int *);
+	nvmlReturn_t (*nvmlDeviceGetPowerManagementDefaultLimit)(nvmlDevice_t, unsigned int *limit);
+	nvmlReturn_t (*nvmlDeviceGetPowerManagementLimit)(nvmlDevice_t, unsigned int *limit);
+	nvmlReturn_t (*nvmlDeviceGetPowerManagementLimitConstraints)(nvmlDevice_t, unsigned int *min, unsigned int *max);
+	nvmlReturn_t (*nvmlDeviceSetPowerManagementLimit)(nvmlDevice_t device, unsigned int limit);
 	nvmlReturn_t (*nvmlDeviceGetPciInfo)(nvmlDevice_t, nvmlPciInfo_t *);
+	nvmlReturn_t (*nvmlDeviceGetCurrPcieLinkGeneration)(nvmlDevice_t device, unsigned int *gen);
+	nvmlReturn_t (*nvmlDeviceGetCurrPcieLinkWidth)(nvmlDevice_t device, unsigned int *width);
+	nvmlReturn_t (*nvmlDeviceGetMaxPcieLinkGeneration)(nvmlDevice_t device, unsigned int *gen);
+	nvmlReturn_t (*nvmlDeviceGetMaxPcieLinkWidth)(nvmlDevice_t device, unsigned int *width);
 	nvmlReturn_t (*nvmlDeviceGetName)(nvmlDevice_t, char *, int);
 	nvmlReturn_t (*nvmlDeviceGetTemperature)(nvmlDevice_t, int, unsigned int *);
 	nvmlReturn_t (*nvmlDeviceGetFanSpeed)(nvmlDevice_t, unsigned int *);
@@ -107,6 +133,15 @@ typedef struct {
 	nvmlReturn_t (*nvmlSystemGetDriverVersion)(char *version, unsigned int len);
 	char* (*nvmlErrorString)(nvmlReturn_t);
 	nvmlReturn_t (*nvmlShutdown)(void);
+	// v331
+	nvmlReturn_t (*nvmlDeviceGetEnforcedPowerLimit)(nvmlDevice_t, unsigned int *limit);
+	// v340
+	//nvmlReturn_t (*nvmlDeviceGetCpuAffinity)(nvmlDevice_t, unsigned int cpuSetSize, unsigned long* cpuSet);
+	//nvmlReturn_t (*nvmlDeviceSetCpuAffinity)(nvmlDevice_t);
+	//nvmlReturn_t (*nvmlDeviceGetAutoBoostedClocksEnabled)(nvmlDevice_t, nvmlEnableState_t *isEnabled, nvmlEnableState_t *defaultIsEnabled);
+	//nvmlReturn_t (*nvmlDeviceSetAutoBoostedClocksEnabled)(nvmlDevice_t, nvmlEnableState_t enabled);
+	// v346
+	nvmlReturn_t (*nvmlDeviceGetPcieThroughput)(nvmlDevice_t, nvmlPcieUtilCounter_t, unsigned int *value);
 } nvml_handle;
 
 
@@ -118,43 +153,11 @@ int nvml_destroy(nvml_handle *nvmlh);
  */
 int nvml_get_gpucount(nvml_handle *nvmlh, int *gpucount);
 
-/*
- * Query the number of GPUs seen by CUDA
- */
-int cuda_get_gpucount(nvml_handle *nvmlh, int *gpucount);
+int nvml_set_plimit(nvml_handle *nvmlh, int dev_id);
+int nvml_set_pstate(nvml_handle *nvmlh, int dev_id);
 
-
-/*
- * query the name of the GPU model from the CUDA device ID
- *
- */
-int nvml_get_gpu_name(nvml_handle *nvmlh,
-                           int gpuindex,
-                           char *namebuf,
-                           int bufsize);
-
-/*
- * Query the current GPU temperature (Celsius), from the CUDA device ID
- */
-int nvml_get_tempC(nvml_handle *nvmlh,
-                        int gpuindex, unsigned int *tempC);
-
-/*
- * Query the current GPU fan speed (percent) from the CUDA device ID
- */
-int nvml_get_fanpcnt(nvml_handle *nvmlh,
-                          int gpuindex, unsigned int *fanpcnt);
-
-/*
- * Query the current GPU power usage in millwatts from the CUDA device ID
- *
- * This feature is only available on recent GPU generations and may be
- * limited in some cases only to Tesla series GPUs.
- * If the query is run on an unsupported GPU, this routine will return -1.
- */
-int nvml_get_power_usage(nvml_handle *nvmlh,
-                              int gpuindex,
-                              unsigned int *milliwatts);
+int nvml_set_clocks(nvml_handle *nvmlh, int dev_id);
+int nvml_reset_clocks(nvml_handle *nvmlh, int dev_id);
 
 /* api functions */
 
@@ -162,12 +165,13 @@ unsigned int gpu_fanpercent(struct cgpu_info *gpu);
 unsigned int gpu_fanrpm(struct cgpu_info *gpu);
 float gpu_temp(struct cgpu_info *gpu);
 unsigned int gpu_power(struct cgpu_info *gpu);
-unsigned int gpu_usage(struct cgpu_info *gpu);
 int gpu_pstate(struct cgpu_info *gpu);
 int gpu_busid(struct cgpu_info *gpu);
 
 /* pid/vid, sn and bios rev */
 int gpu_info(struct cgpu_info *gpu);
+int gpu_vendor(uint8_t pci_bus_id, char *vendorname);
+
 
 /* nvapi functions */
 #ifdef WIN32

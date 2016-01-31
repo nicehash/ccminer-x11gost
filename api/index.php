@@ -1,5 +1,5 @@
 <?php
-/* ccminer API sample UI */
+/* ccminer API sample UI (API 1.7) */
 
 $host = 'http://localhost/api/'; // 'http://'.$_SERVER['SERVER_NAME'].'/api/';
 $configs = array(
@@ -27,7 +27,7 @@ function getdataFromPeers()
 function ignoreField($key)
 {
 	$ignored = array(
-		'API','VER','GPU','BUS',
+		'API','VER','GPU','BUS','POOLS',
 		'CARD','GPUS','CPU','TS',
 	);
 	return in_array($key, $ignored);
@@ -46,18 +46,25 @@ function translateField($key)
 	$intl['ACC'] = 'Accepted shares';
 	$intl['ACCMN'] = 'Accepted / mn';
 	$intl['REJ'] = 'Rejected';
+	$intl['SOLV'] = 'Solved';
+	$intl['BEST'] = 'Best share';
+	$intl['LAST'] = 'Last share';
 	$intl['DIFF'] = 'Difficulty';
+	$intl['NETKHS'] = 'Net Rate';
 	$intl['UPTIME'] = 'Miner up time';
 	$intl['TS'] = 'Last update';
 	$intl['THR'] = 'Throughput';
+	$intl['WAIT'] = 'Wait time';
 
 	$intl['H'] = 'Bloc height';
 	$intl['I'] = 'Intensity';
 	$intl['HWF'] = 'Failures';
+	$intl['POOLS'] = 'Pools';
 
 	$intl['TEMP'] = 'T°c';
 	$intl['FAN'] = 'Fan %';
 	$intl['FREQ'] = 'Freq.';
+	$intl['POWER'] = 'Power';
 	$intl['PST'] = 'P-State';
 
 	// pool infos
@@ -76,6 +83,7 @@ function translateValue($key,$val,$data=array())
 {
 	switch ($key) {
 		case 'UPTIME':
+		case 'WAIT':
 			$min = floor(intval($val) / 60);
 			$sec = intval($val) % 60;
 			$val = "${min}mn${sec}s";
@@ -91,10 +99,14 @@ function translateValue($key,$val,$data=array())
 		case 'FREQ':
 			$val = sprintf("%d MHz", round(floatval($val)/1000.0));
 			break;
+		case 'POWER':
+			$val = sprintf("%d W", round(floatval($val)/1000.0));
+			break;
 		case 'TS':
 			$val = strftime("%H:%M:%S", (int) $val);
 			break;
 		case 'KHS':
+		case 'NETKHS':
 			$val = '<span class="bold">'.$val.'</span> kH/s';
 			break;
 		case 'NAME':
@@ -246,7 +258,7 @@ span.elipsis { display: inline-block; max-width: 130px; overflow: hidden; }
 </div>
 
 <div id="footer">
-<p>&copy; 2014 <a href="http://github.com/tpruvot/ccminer">tpruvot@github</a></p>
+<p>&copy; 2014-2015 <a href="http://github.com/tpruvot/ccminer">tpruvot@github</a></p>
 </div>
 
 </body>
