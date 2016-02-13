@@ -1657,7 +1657,7 @@ static void *miner_thread(void *userdata)
 		/* scan nonces for a proof-of-work hash */
 		switch (opt_algo) {
 			case ALGO_VANILLA:
-				rc = scanhash_blake256(thr_id, &work, max_nonce, &hashes_done);
+				rc = scanhash_blake256(thr_id, &work, max_nonce, &hashes_done,8);
 				break;
 			case ALGO_WHIRLPOOLX:
 				rc = scanhash_whirlpoolx(thr_id, &work, max_nonce, &hashes_done);
@@ -2777,6 +2777,12 @@ int main(int argc, char *argv[])
 	printf("  Include some of the work of djm34, sp, tsiv and klausT.\n\n");
 	printf("BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo (tpruvot)\n\n");
 
+	// extra credits..
+	if (opt_algo == ALGO_WHIRLPOOLX || opt_algo == ALGO_VANILLA) {
+		printf("Optimized whirlpoolx & 8-round blake by Alexis Provos.\n");
+		printf("VNL donation address: Vr5oCen8NrY6ekBWFaaWjCUFBH4dyiS57W\n\n");
+	}
+	
 	rpc_user = strdup("");
 	rpc_pass = strdup("");
 	rpc_url = strdup("");
@@ -2825,12 +2831,6 @@ int main(int argc, char *argv[])
 
 	/* parse command line */
 	parse_cmdline(argc, argv);
-
-	// extra credits..
-	if (opt_algo == ALGO_WHIRLPOOLX || opt_algo == ALGO_VANILLA) {
-		printf("  Vanillacoin support by Alexis Provos.\n");
-		printf("VNL donation address: Vr5oCen8NrY6ekBWFaaWjCUFBH4dyiS57W\n\n");
-	}
 
 	if (!opt_benchmark && !strlen(rpc_url)) {
 		// try default config file (user then binary folder)
