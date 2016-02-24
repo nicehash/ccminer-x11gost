@@ -52,8 +52,7 @@ extern "C" void blake256hash(void *output, const void *input, int8_t blakerounds
 }
 
 __global__ __launch_bounds__(TPB,1)
-void vanilla_gpu_hash_16_8(const uint32_t threads, const uint32_t startNonce, uint32_t *resNonce,const uint32_t highTarget)
-{
+void vanilla_gpu_hash_16_8(const uint32_t threads, const uint32_t startNonce, uint32_t *resNonce,const uint32_t highTarget){
 	uint32_t v[16];
 	uint32_t tmp[13];
 
@@ -61,34 +60,34 @@ void vanilla_gpu_hash_16_8(const uint32_t threads, const uint32_t startNonce, ui
 	const uint32_t step     = gridDim.x * blockDim.x;
 	const uint32_t maxNonce = startNonce + threads;
 
-	const uint32_t c_u256[16] = {
-		0x243F6A88, 0x85A308D3, 0x13198A2E, 0x03707344, 0xA4093822, 0x299F31D0, 0x082EFA98, 0xEC4E6C89,
-		0x452821E6, 0x38D01377, 0xBE5466CF, 0x34E90C6C, 0xC0AC29B7, 0xC97C50DD, 0x3F84D5B5, 0xB5470917
+	const	uint32_t c_u256[16] = {
+				  0x243F6A88,	0x85A308D3,	0x13198A2E,	0x03707344,
+				  0xA4093822,	0x299F31D0,	0x082EFA98,	0xEC4E6C89,
+				  0x452821E6,	0x38D01377,	0xBE5466CF,	0x34E90C6C,
+				  0xC0AC29B7,	0xC97C50DD,	0x3F84D5B5,	0xB5470917
 	};
+	const	uint32_t h[8]  = {
+				  d_data[0],	d_data[1],	d_data[2],	d_data[3],
+				  d_data[4],	0,		d_data[5],	d_data[6]
+	};
+		uint32_t m[16] = {
+				  d_data[7],	d_data[8],	d_data[9],	0,
+				  0x80000000UL,	0,		0,		0,
+				  0,		0,		0,		0,
+				  0,		1,		0,		640
+		};
 
-	const uint32_t h0 = d_data[0];      const uint32_t h1 = d_data[1];
-	const uint32_t h2 = d_data[2];      const uint32_t h3 = d_data[3];
-	const uint32_t h4 = d_data[4];      //const uint32_t h5 = d_data[5]; no need
-	const uint32_t h6 = d_data[5];      const uint32_t h7 = d_data[6];
-	const uint32_t m0 = d_data[7];      const uint32_t m1 = d_data[8];
-	const uint32_t m2 = d_data[9];      //le' nonce
-	const uint32_t m4 = 0x80000000UL;   const uint32_t m5 = 0;
-	const uint32_t m6 = 0;              const uint32_t m7 = 0;
-	const uint32_t m8 = 0;              const uint32_t m9 = 0;
-	const uint32_t m10 = 0;             const uint32_t m11 = 0;
-	const uint32_t m12 = 0;             const uint32_t m13 = 1;
-	const uint32_t m14 = 0;             const uint32_t m15 = 640;
-
+	#pragma unroll 6
+	for(int i=0;i<6;i++)
+		tmp[ i] = d_data[i+10U];
+		
 	//---MORE PRECOMPUTATIONS
-	tmp[ 0] = d_data[10];              tmp[ 1] = d_data[11];
-	tmp[ 2] = d_data[12];              tmp[ 3] = c_u256[1] + tmp[2];
-	tmp[ 4] = d_data[13];              tmp[ 5] = d_data[14];
-	tmp[ 6] = c_u256[2] + tmp[5];      tmp[ 7] = d_data[15];
+	tmp[ 6] = c_u256[2] + tmp[ 4];	tmp[ 7] = c_u256[1] + tmp[ 2];
 
-	tmp[ 5] = __byte_perm(tmp[5] ^ h2,0, 0x0321);   tmp[ 6] += tmp[5];
-	tmp[ 7] = ROTR32(tmp[7] ^ tmp[6],7);            tmp[ 8] = __byte_perm(c_u256[7] ^ h3,0, 0x1032);
-	tmp[ 9] = c_u256[3] + tmp[8];                   tmp[10] = ROTR32(h7 ^ tmp[9], 12);
-	tmp[11] = h3 + c_u256[6] + tmp[10];
+	tmp[ 4] = __byte_perm(tmp[ 4] ^ h[2],0, 0x0321);	tmp[ 6] += tmp[ 4];
+	tmp[ 5] = ROTR32(tmp[ 5] ^ tmp[ 6],7);			tmp[ 8] = __byte_perm(c_u256[7] ^ h[3],0, 0x1032);
+	tmp[ 9] = c_u256[3] + tmp[8];                   	tmp[10] = ROTR32(h[7] ^ tmp[9], 12);
+	tmp[11] = h[3] + c_u256[6] + tmp[10];
 
 	tmp[ 8] = __byte_perm(tmp[8] ^ tmp[11],0, 0x0321);  tmp[ 9] += tmp[8];
 	tmp[10] = ROTR32(tmp[10] ^ tmp[9],7);
@@ -96,28 +95,30 @@ void vanilla_gpu_hash_16_8(const uint32_t threads, const uint32_t startNonce, ui
 
 	for(uint64_t m3 = startNonce + thread ; m3<maxNonce ; m3+=step){
 
+		m[3]  = m3;
+
 		//All i need is, h0,h1,h2,h4,h6,h7,m0,m1,m2 ++ tmps (13) //22 vars
-		v[0]  = h0;     v[1]  = h1;     v[2]  = h2;     v[3]  = tmp[11];
-		v[4]  = h4;     v[5]  = tmp[4]; v[6]  = tmp[7]; v[7]  = tmp[10];
-		v[8]  = tmp[1]; v[9]  = tmp[3]; v[10] = tmp[6]; v[11] = tmp[9];
-		v[12] = tmp[0]; v[13] = tmp[2]; v[14] = tmp[5]; v[15] = tmp[8];
+		v[ 0] = h[ 0];  	v[ 1] = h[1];		v[ 2] = h[2];		v[ 3] = tmp[11];
+		v[ 4] = h[ 4];  	v[ 5] = tmp[ 3];	v[ 6] = tmp[ 5];	v[ 7] = tmp[10];
+		v[ 8] = tmp[ 1];	v[ 9] = tmp[ 7];	v[10] = tmp[ 6];	v[11] = tmp[ 9];
+		v[12] = tmp[ 0];	v[13] = tmp[ 2];	v[14] = tmp[ 4];	v[15] = tmp[ 8];
 
 		v[ 1] += m3 ^ c_u256[2];        v[13] = __byte_perm(v[13] ^ v[1],0, 0x0321);v[ 9] += v[13];     v[5] = ROTR32(v[5] ^ v[9], 7);
 		v[ 0] += v[5];                  v[15] = __byte_perm(v[15] ^ v[0],0, 0x1032);v[10] += v[15];     v[5] = ROTR32(v[5] ^ v[10], 12);
 		v[ 0] += c_u256[8] + v[5];      v[15] = __byte_perm(v[15] ^ v[0],0, 0x0321);v[10] += v[15];     v[5] = ROTR32(v[5] ^ v[10], 7);
 
 		#define GSPREC(a,b,c,d,x,y) { \
-			v[a] += (m##x ^ c_u256[y]) + v[b]; \
+			v[a] += (m[x] ^ c_u256[y]) + v[b]; \
 			v[d] = __byte_perm(v[d] ^ v[a],0, 0x1032); \
 			v[c] += v[d]; \
 			v[b] = ROTR32(v[b] ^ v[c], 12); \
-			v[a] += (m##y ^ c_u256[x]) + v[b]; \
+			v[a] += (m[y] ^ c_u256[x]) + v[b]; \
 			v[d] = __byte_perm(v[d] ^ v[a],0, 0x0321); \
 			v[c] += v[d]; \
 			v[b] = ROTR32(v[b] ^ v[c], 7); \
 		}
 
-		GSPREC(1, 6, 11, 12, 10, 11);   GSPREC(2, 7, 8, 13, 12, 13);    GSPREC(3, 4, 9, 14, 14, 15);
+						GSPREC(1, 6, 11, 12, 10, 11);   GSPREC(2, 7, 8, 13, 12, 13);    GSPREC(3, 4, 9, 14, 14, 15);
 		//  { 14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3 },
 		GSPREC(0, 4, 8, 12, 14, 10);    GSPREC(1, 5, 9, 13, 4, 8);      GSPREC(2, 6, 10, 14, 9, 15);    GSPREC(3, 7, 11, 15, 13, 6);
 		GSPREC(0, 5, 10, 15, 1, 12);    GSPREC(1, 6, 11, 12, 0, 2);     GSPREC(2, 7, 8, 13, 11, 7);     GSPREC(3, 4, 9, 14, 5, 3);
@@ -139,25 +140,25 @@ void vanilla_gpu_hash_16_8(const uint32_t threads, const uint32_t startNonce, ui
 		//  { 13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10 },
 		GSPREC(0, 4, 8, 12, 13, 11);    GSPREC(1, 5, 9, 13, 7, 14);     GSPREC(2, 6, 10, 14, 12, 1);    GSPREC(3, 7, 11, 15, 3, 9);
 
-		v[ 0] += (m5 ^ c_u256[0]) + v[5];   v[15] = __byte_perm(v[15] ^ v[0],0, 0x1032);
-		v[10] += v[15];                     v[ 5] = ROTR32(v[5] ^ v[10], 12);
-		v[ 0] += (m0 ^ c_u256[5]) + v[5];   v[15] = __byte_perm(v[15] ^ v[0],0, 0x0321);
+		v[ 0] += (m[ 5] ^ c_u256[0]) + v[5];	v[15] = __byte_perm(v[15] ^ v[0],0, 0x1032);
+		v[10] += v[15];				v[ 5] = ROTR32(v[5] ^ v[10], 12);
+		v[ 0] += (m[ 0] ^ c_u256[5]) + v[5];	v[15] = __byte_perm(v[15] ^ v[0],0, 0x0321);
 
-		v[2] += (m8 ^ c_u256[6]) + v[7];    v[13] = __byte_perm(v[13] ^ v[2],0, 0x1032);
-		v[8] += v[13];                      v[ 7] = ROTR32(v[7] ^ v[8], 12);
-		v[2] += (m6 ^ c_u256[8]) + v[7];    v[13] = __byte_perm(v[13] ^ v[2],0, 0x0321);
-		v[8] += v[13];                      v[ 7] = ROTR32(v[7] ^ v[8], 7);
+		v[2] += (m[ 8] ^ c_u256[6]) + v[7];	v[13] = __byte_perm(v[13] ^ v[2],0, 0x1032);
+		v[8] += v[13];				v[ 7] = ROTR32(v[7] ^ v[8], 12);
+		v[2] += (m[ 6] ^ c_u256[8]) + v[7];	v[13] = __byte_perm(v[13] ^ v[2],0, 0x0321);
+		v[8] += v[13];				v[ 7] = ROTR32(v[7] ^ v[8], 7);
 
 		// only compute h6 & 7
-		if((h7^v[7]^v[15])==0){
+		if((h[7]^v[7]^v[15])==0){
 			GSPREC(1, 6, 11, 12, 15, 4);
-			v[ 3] += (m2 ^ c_u256[10]) + v[4];
+			v[ 3] += (m[2] ^ c_u256[10]) + v[4];
 			v[14]  = __byte_perm(v[14] ^ v[3],0, 0x1032);
 			v[ 9] += v[14];
 			v[ 4]  = ROTR32(v[4] ^ v[9],12);
-			v[ 3] += (m10 ^ c_u256[2]) + v[4];
+			v[ 3] += (m[10] ^ c_u256[2]) + v[4];
 			v[14]  = __byte_perm(v[14] ^ v[3],0, 0x0321);
-			if(cuda_swab32(h6^v[6]^v[14]) <= highTarget) {
+			if(cuda_swab32(h[6]^v[6]^v[14]) <= highTarget) {
 #if NBN == 2
 			/* keep the smallest nonce, + extra one if found */
 			if (m3 < resNonce[0]){
