@@ -2,19 +2,19 @@
  * Optimized Blake-256 8-rounds Cuda Kernel (Tested on SM >3.0)
  * Based upon Blake-256 implementation of Tanguy Pruvot - Nov. 2014
  *
- * midstate computation inherited from
- *  https://github.com/wfr/clblake
- *
  * Provos Alexis - Jan. 2016
  * Reviewed by tpruvot - Feb 2016
  * 
- * Fixed CUDA 7.5 flaw, minor code changes, code cleanup, increased nonces per thread
+ * Fixed CUDA 7.5 flaw
+ * minor code changes
+ * code cleanup
+ * increased nonces per thread
+ * removed SSE2 midstate computation
  * Provos Alexis - Mar 2016
  */
 
 #include <stdint.h>
 #include <memory.h>
-#include <emmintrin.h>
 
 #include "miner.h"
 
@@ -291,66 +291,6 @@ loopstart:
 	goto loopstart;
 }
 
-
-#define round(r) \
-		/*        column step          */ \
-		buf1 = _mm_set_epi32(m.u32[sig[r][ 6]], m.u32[sig[r][ 4]], m.u32[sig[r][ 2]], m.u32[sig[r][ 0]]); \
-		buf2  = _mm_set_epi32(z[sig[r][ 7]], z[sig[r][ 5]], z[sig[r][ 3]],z[sig[r][ 1]]); \
-		buf1 = _mm_xor_si128( buf1, buf2); \
-		row1 = _mm_add_epi32( _mm_add_epi32( row1, buf1), row2 ); \
-		buf1  = _mm_set_epi32(z[sig[r][ 6]], z[sig[r][ 4]], z[sig[r][ 2]], z[sig[r][ 0]]); \
-		buf2 = _mm_set_epi32(m.u32[sig[r][ 7]], m.u32[sig[r][ 5]], m.u32[sig[r][ 3]], m.u32[sig[r][ 1]]); \
-		row4 = _mm_xor_si128( row4, row1 ); \
-		row4 = _mm_xor_si128(_mm_srli_epi32( row4, 16 ),_mm_slli_epi32( row4, 16 )); \
-		row3 = _mm_add_epi32( row3, row4 );   \
-		row2 = _mm_xor_si128( row2, row3 ); \
-		buf1 = _mm_xor_si128( buf1, buf2); \
-		row2 = _mm_xor_si128(_mm_srli_epi32( row2, 12 ),_mm_slli_epi32( row2, 20 )); \
-		row1 = _mm_add_epi32( _mm_add_epi32( row1, buf1), row2 ); \
-		row4 = _mm_xor_si128( row4, row1 ); \
-		row4 = _mm_xor_si128(_mm_srli_epi32( row4,  8 ),_mm_slli_epi32( row4, 24 )); \
-		row3 = _mm_add_epi32( row3, row4 );   \
-		row4 = _mm_shuffle_epi32( row4, _MM_SHUFFLE(2,1,0,3) ); \
-		row2 = _mm_xor_si128( row2, row3 ); \
-		row2 = _mm_xor_si128(_mm_srli_epi32( row2,  7 ),_mm_slli_epi32( row2, 25 )); \
-\
-		row3 = _mm_shuffle_epi32( row3, _MM_SHUFFLE(1,0,3,2) ); \
-		row2 = _mm_shuffle_epi32( row2, _MM_SHUFFLE(0,3,2,1) ); \
-\
-	   /*       diagonal step         */ \
-		buf1 = _mm_set_epi32(m.u32[sig[r][14]], m.u32[sig[r][12]], m.u32[sig[r][10]], m.u32[sig[r][ 8]]); \
-		buf2  = _mm_set_epi32(z[sig[r][15]], z[sig[r][13]], z[sig[r][11]], z[sig[r][ 9]]); \
-		buf1 = _mm_xor_si128( buf1, buf2); \
-		row1 = _mm_add_epi32( _mm_add_epi32( row1, buf1 ), row2 ); \
-		buf1  = _mm_set_epi32(z[sig[r][14]], z[sig[r][12]], z[sig[r][10]], z[sig[r][ 8]]); \
-		buf2 = _mm_set_epi32(m.u32[sig[r][15]], m.u32[sig[r][13]], m.u32[sig[r][11]], m.u32[sig[r][ 9]]); \
-		row4 = _mm_xor_si128( row4, row1 ); \
-		buf1 = _mm_xor_si128( buf1, buf2); \
-		row4 = _mm_xor_si128(_mm_srli_epi32( row4, 16 ),_mm_slli_epi32( row4, 16 )); \
-		row3 = _mm_add_epi32( row3, row4 );   \
-		row2 = _mm_xor_si128( row2, row3 ); \
-		row2 = _mm_xor_si128(_mm_srli_epi32( row2, 12 ),_mm_slli_epi32( row2, 20 )); \
-		row1 = _mm_add_epi32( _mm_add_epi32( row1, buf1 ), row2 ); \
-		row4 = _mm_xor_si128( row4, row1 ); \
-		row4 = _mm_xor_si128(_mm_srli_epi32( row4,  8 ),_mm_slli_epi32( row4, 24 )); \
-		row3 = _mm_add_epi32( row3, row4 );   \
-		row4 = _mm_shuffle_epi32( row4, _MM_SHUFFLE(0,3,2,1) ); \
-		row2 = _mm_xor_si128( row2, row3 ); \
-		row2 = _mm_xor_si128(_mm_srli_epi32( row2,  7 ),_mm_slli_epi32( row2, 25 )); \
-\
-		row3 = _mm_shuffle_epi32( row3, _MM_SHUFFLE(1,0,3,2) ); \
-		row2 = _mm_shuffle_epi32( row2, _MM_SHUFFLE(2,1,0,3) ); \
-\
-
-#define LOADU(p)  _mm_loadu_si128( (__m128i *)(p) )
-
-#define BSWAP32(r) do{ \
-   r = _mm_shufflehi_epi16(r, _MM_SHUFFLE(2, 3, 0, 1));\
-   r = _mm_shufflelo_epi16(r, _MM_SHUFFLE(2, 3, 0, 1));\
-   r = _mm_xor_si128(_mm_slli_epi16(r, 8), _mm_srli_epi16(r, 8));\
-} while(0)
-
-
 __host__
 void vanilla_cpu_setBlock_16(const int thr_id,const uint32_t* endiandata, uint32_t *penddata){
 
@@ -360,51 +300,19 @@ void vanilla_cpu_setBlock_16(const int thr_id,const uint32_t* endiandata, uint32
 		SPH_C32(0x452821E6), SPH_C32(0x38D01377), SPH_C32(0xBE5466CF), SPH_C32(0x34E90C6C),
 		SPH_C32(0xC0AC29B7), SPH_C32(0xC97C50DD), SPH_C32(0x3F84D5B5), SPH_C32(0xB5470917)
 	};
-	const uint32_t _ALIGN(64) init[8] = {
-		SPH_C32(0x6A09E667), SPH_C32(0xBB67AE85), SPH_C32(0x3C6EF372), SPH_C32(0xA54FF53A),
-		SPH_C32(0x510E527F), SPH_C32(0x9B05688C), SPH_C32(0x1F83D9AB), SPH_C32(0x5BE0CD19)
-	};
-	
 	uint32_t _ALIGN(64) h[22];
 
-	__m128i row1, row2, row3, row4;
-	__m128i buf1, buf2;
+	sph_blake256_context ctx;
 
-	union {
-		uint32_t u32[16];
-		__m128i u128[4];
-	} m;
-	static const int sig[][16] = {
-		{  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15 } , { 14, 10,  4,  8,  9, 15, 13,  6,  1, 12,  0,  2, 11,  7,  5,  3 } ,
-		{ 11,  8, 12,  0,  5,  2, 15, 13, 10, 14,  3,  6,  7,  1,  9,  4 } , {  7,  9,  3,  1, 13, 12, 11, 14,  2,  6,  5, 10,  4,  0, 15,  8 } ,
-		{  9,  0,  5,  7,  2,  4, 10, 15, 14,  1, 11, 12,  6,  8,  3, 13 } , {  2, 12,  6, 10,  0, 11,  8,  3,  4, 13,  7,  5, 15, 14,  1,  9 } ,
-		{ 12,  5,  1, 15, 14, 13,  4, 10,  0,  7,  6,  3,  9,  2,  8, 11 } , { 13, 11,  7, 14, 12,  1,  3,  9,  5,  0, 15,  4,  8,  6,  2, 10 }
-	};
+	sph_blake256_set_rounds(8);
 
-	h[ 0] = init[ 0];			h[ 1] = init[ 1];
-	h[ 2] = init[ 2];			h[21] = init[ 3];
-	h[ 4] = init[ 4];			h[20] = init[ 5];
-	h[19] = init[ 6];			h[16] = init[ 7];
-	/* get message */
-	m.u128[0] = LOADU(endiandata + 0);	m.u128[1] = LOADU(endiandata + 4);
-	m.u128[2] = LOADU(endiandata + 8);	m.u128[3] = LOADU(endiandata + 12);
-	BSWAP32(m.u128[0]); 			BSWAP32(m.u128[1]);
-	BSWAP32(m.u128[2]);			BSWAP32(m.u128[3]);
-
-	row1 = _mm_set_epi32(h[21], h[ 2], h[ 1], h[ 0]);
-	row2 = _mm_set_epi32(h[16], h[19], h[20], h[ 4]);
-	row3 = _mm_set_epi32(z[ 3], z[ 2], z[ 1], z[ 0]);
-	row4 = _mm_set_epi32(z[ 7], z[ 6], z[ 5]^512, z[ 4]^512);
-
-	round( 0);	round( 1);	round( 2);	round( 3);
-	round( 4);	round( 5);	round( 6);	round( 7);
-
-	_mm_store_si128( (__m128i *)m.u32, _mm_xor_si128(row1,row3));
-	h[ 0] = init[ 0]^m.u32[ 0];	h[ 1] = init[ 1]^m.u32[ 1];
-	h[ 2] = init[ 2]^m.u32[ 2];	h[21] = init[ 3]^m.u32[ 3];
-	_mm_store_si128( (__m128i *)m.u32, _mm_xor_si128(row2,row4));
-	h[ 4] = init[ 4]^m.u32[ 0];	h[20] = init[ 5]^m.u32[ 1];
-	h[19] = init[ 6]^m.u32[ 2];	h[16] = init[ 7]^m.u32[ 3];
+	sph_blake256_init(&ctx);
+	sph_blake256(&ctx, endiandata, 64);
+	
+	h[ 0] = ctx.H[0];	h[ 1] = ctx.H[1];
+	h[ 2] = ctx.H[2];	h[21] = ctx.H[3];
+	h[ 4] = ctx.H[4];	h[20] = ctx.H[5];
+	h[19] = ctx.H[6];	h[16] = ctx.H[7];
 
 	uint32_t tmp = h[20];
 	h[20] = h[19];
