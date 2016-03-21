@@ -7,6 +7,9 @@
  *
  * Provos Alexis - Jan. 2016
  * Reviewed by tpruvot - Feb 2016
+ * 
+ * Fixed CUDA 7.5 flaw, minor code changes, code cleanup, increased nonces per thread
+ * Provos Alexis - Mar 2016
  */
 
 #include <stdint.h>
