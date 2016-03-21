@@ -25,16 +25,17 @@ extern "C" {
 #define __byte_perm(x, y, b) x
 #endif
 
-/* threads per block and "magic" */
+/* threads per block and nonces per thread */
 #define TPB 768
-#define NPT 224
+#define NPT 384
 #define NBN 2
 
-__constant__ uint32_t _ALIGN(16) d_data[22];
+__constant__ uint32_t _ALIGN(16) d_data[21];
 
 /* 8 adapters max */
-static uint32_t *d_resNonce[MAX_GPUS];
-static uint32_t *h_resNonce[MAX_GPUS];
+static uint32_t		*d_resNonce[MAX_GPUS];
+static uint32_t		*h_resNonce[MAX_GPUS];
+static cudaStream_t	streams[MAX_GPUS];
 
 /* hash by cpu with blake 256 */
 extern "C" void blake256hash(void *output, const void *input, int8_t blakerounds){
@@ -49,74 +50,109 @@ extern "C" void blake256hash(void *output, const void *input, int8_t blakerounds
 
 	memcpy(output, hash, 32);
 }
-
-#define GSPREC4(a,b,c,d,x,y,a1,b1,c1,d1,x1,y1,a2,b2,c2,d2,x2,y2,a3,b3,c3,d3,x3,y3) { \
-	v[ a]+= (m[ x] ^ z[ y]); \
-	v[a1]+= (m[x1] ^ z[y1]); \
-	v[a2]+= (m[x2] ^ z[y2]); \
-	v[a3]+= (m[x3] ^ z[y3]); \
-	v[ a]+= v[ b];\
-	v[a1]+= v[b1];\
-	v[a2]+= v[b2];\
-	v[a3]+= v[b3];\
+#define GS4(a,b,c,d,x,y,a1,b1,c1,d1,x1,y1,a2,b2,c2,d2,x2,y2,a3,b3,c3,d3,x3,y3) { \
+	v[ a]+= (m[ x] ^ z[ y]) + v[ b]; \
+	v[a1]+= (m[x1] ^ z[y1]) + v[b1]; \
+	v[a2]+= (m[x2] ^ z[y2]) + v[b2]; \
+	v[a3]+= (m[x3] ^ z[y3]) + v[b3]; \
 	\
-	v[ d]^=v[ a];\
-	v[d1]^=v[a1];\
-	v[d2]^=v[a2];\
-	v[d3]^=v[a3];\
-	v[ d] = __byte_perm(v[ d], 0, 0x1032); \
-	v[d1] = __byte_perm(v[d1], 0, 0x1032); \
-	v[d2] = __byte_perm(v[d2], 0, 0x1032); \
-	v[d3] = __byte_perm(v[d3], 0, 0x1032); \
+	v[ d] = __byte_perm(v[ d] ^ v[ a], 0, 0x1032); \
+	v[d1] = __byte_perm(v[d1] ^ v[a1], 0, 0x1032); \
+	v[d2] = __byte_perm(v[d2] ^ v[a2], 0, 0x1032); \
+	v[d3] = __byte_perm(v[d3] ^ v[a3], 0, 0x1032); \
 	\
 	v[ c]+= v[ d]; \
 	v[c1]+= v[d1]; \
 	v[c2]+= v[d2]; \
 	v[c3]+= v[d3]; \
 	\
-	v[ b]^=v[ c];\
-	v[b1]^=v[c1];\
-	v[b2]^=v[c2];\
-	v[b3]^=v[c3];\
-	v[ b] = ROTR32(v[ b], 12); \
-	v[b1] = ROTR32(v[b1], 12); \
-	v[b2] = ROTR32(v[b2], 12); \
-	v[b3] = ROTR32(v[b3], 12); \
+	v[ b] = ROTR32(v[ b] ^ v[ c], 12); \
+	v[b1] = ROTR32(v[b1] ^ v[c1], 12); \
+	v[b2] = ROTR32(v[b2] ^ v[c2], 12); \
+	v[b3] = ROTR32(v[b3] ^ v[c3], 12); \
 	\
-	v[ a]+= (m[ y] ^ z[ x]); \
-	v[a1]+= (m[y1] ^ z[x1]); \
-	v[a2]+= (m[y2] ^ z[x2]); \
-	v[a3]+= (m[y3] ^ z[x3]); \
-	v[ a]+= v[ b];\
-	v[a1]+= v[b1];\
-	v[a2]+= v[b2];\
-	v[a3]+= v[b3];\
+	v[ a]+= (m[ y] ^ z[ x]) + v[ b]; \
+	v[a1]+= (m[y1] ^ z[x1]) + v[b1]; \
+	v[a2]+= (m[y2] ^ z[x2]) + v[b2]; \
+	v[a3]+= (m[y3] ^ z[x3]) + v[b3]; \
 	\
-	v[ d]^=v[ a];\
-	v[d1]^=v[a1];\
-	v[d2]^=v[a2];\
-	v[d3]^=v[a3];\
-	v[ d] = __byte_perm(v[ d], 0, 0x0321); \
-	v[d1] = __byte_perm(v[d1], 0, 0x0321); \
-	v[d2] = __byte_perm(v[d2], 0, 0x0321); \
-	v[d3] = __byte_perm(v[d3], 0, 0x0321); \
+	v[ d] = __byte_perm(v[ d] ^ v[ a], 0, 0x0321); \
+	v[d1] = __byte_perm(v[d1] ^ v[a1], 0, 0x0321); \
+	v[d2] = __byte_perm(v[d2] ^ v[a2], 0, 0x0321); \
+	v[d3] = __byte_perm(v[d3] ^ v[a3], 0, 0x0321); \
 	\
 	v[ c]+= v[ d]; \
 	v[c1]+= v[d1]; \
 	v[c2]+= v[d2]; \
 	v[c3]+= v[d3]; \
 	\
-	v[ b]^=v[ c];\
-	v[b1]^=v[c1];\
-	v[b2]^=v[c2];\
-	v[b3]^=v[c3];\
-	v[ b] = ROTR32(v[ b], 7); \
-	v[b1] = ROTR32(v[b1], 7); \
-	v[b2] = ROTR32(v[b2], 7); \
-	v[b3] = ROTR32(v[b3], 7); \
+	v[ b] = ROTR32(v[ b] ^ v[ c], 7); \
+	v[b1] = ROTR32(v[b1] ^ v[c1], 7); \
+	v[b2] = ROTR32(v[b2] ^ v[c2], 7); \
+	v[b3] = ROTR32(v[b3] ^ v[c3], 7); \
 }
 
-#define GSPREC(a,b,c,d,x,y) { \
+#define GS3(a,b,c,d,x,y,a1,b1,c1,d1,x1,y1,a2,b2,c2,d2,x2,y2) { \
+	v[ a]+= (m[ x] ^ z[ y]) + v[ b]; \
+	v[a1]+= (m[x1] ^ z[y1]) + v[b1]; \
+	v[a2]+= (m[x2] ^ z[y2]) + v[b2]; \
+	\
+	v[ d] = __byte_perm(v[ d] ^ v[ a], 0, 0x1032); \
+	v[d1] = __byte_perm(v[d1] ^ v[a1], 0, 0x1032); \
+	v[d2] = __byte_perm(v[d2] ^ v[a2], 0, 0x1032); \
+	\
+	v[ c]+= v[ d]; \
+	v[c1]+= v[d1]; \
+	v[c2]+= v[d2]; \
+	\
+	v[ b] = ROTR32(v[ b] ^ v[ c], 12); \
+	v[b1] = ROTR32(v[b1] ^ v[c1], 12); \
+	v[b2] = ROTR32(v[b2] ^ v[c2], 12); \
+	\
+	v[ a]+= (m[ y] ^ z[ x]) + v[ b]; \
+	v[a1]+= (m[y1] ^ z[x1]) + v[b1]; \
+	v[a2]+= (m[y2] ^ z[x2]) + v[b2]; \
+	\
+	v[ d] = __byte_perm(v[ d] ^ v[ a], 0, 0x0321); \
+	v[d1] = __byte_perm(v[d1] ^ v[a1], 0, 0x0321); \
+	v[d2] = __byte_perm(v[d2] ^ v[a2], 0, 0x0321); \
+	\
+	v[ c]+= v[ d]; \
+	v[c1]+= v[d1]; \
+	v[c2]+= v[d2]; \
+	\
+	v[ b] = ROTR32(v[ b] ^ v[ c], 7); \
+	v[b1] = ROTR32(v[b1] ^ v[c1], 7); \
+	v[b2] = ROTR32(v[b2] ^ v[c2], 7); \
+}
+
+#define GS2(a,b,c,d,x,y,a1,b1,c1,d1,x1,y1) { \
+	v[ a]+= (m[ x] ^ z[ y]) + v[ b]; \
+	v[a1]+= (m[x1] ^ z[y1]) + v[b1]; \
+	\
+	v[ d] = __byte_perm(v[ d] ^ v[ a], 0, 0x1032); \
+	v[d1] = __byte_perm(v[d1] ^ v[a1], 0, 0x1032); \
+	\
+	v[ c]+= v[ d]; \
+	v[c1]+= v[d1]; \
+	\
+	v[ b] = ROTR32(v[ b] ^ v[ c], 12); \
+	v[b1] = ROTR32(v[b1] ^ v[c1], 12); \
+	\
+	v[ a]+= (m[ y] ^ z[ x]) + v[ b]; \
+	v[a1]+= (m[y1] ^ z[x1]) + v[b1]; \
+	\
+	v[ d] = __byte_perm(v[ d] ^ v[ a], 0, 0x0321); \
+	v[d1] = __byte_perm(v[d1] ^ v[a1], 0, 0x0321); \
+	\
+	v[ c]+= v[ d]; \
+	v[c1]+= v[d1]; \
+	\
+	v[ b] = ROTR32(v[ b] ^ v[ c], 7); \
+	v[b1] = ROTR32(v[b1] ^ v[c1], 7); \
+}
+
+#define GS(a,b,c,d,x,y) { \
 	v[a] += (m[x] ^ z[y]) + v[b]; \
 	v[d] = __byte_perm(v[d] ^ v[a],0, 0x1032); \
 	v[c] += v[d]; \
@@ -128,44 +164,49 @@ extern "C" void blake256hash(void *output, const void *input, int8_t blakerounds
 }
 
 __global__ __launch_bounds__(TPB,1)
-void vanilla_gpu_hash_16_8(const uint32_t threads, const uint32_t startNonce, uint32_t *resNonce,const uint32_t highTarget){
-	uint32_t v[16];
-	uint32_t tmp[12];
+void vanilla_gpu_hash_16_8(const uint32_t threads, const uint32_t startNonce, uint32_t *resNonce,const uint64_t highTarget){
+	uint32_t _ALIGN(16) v[16];
+	uint32_t _ALIGN(16) tmp[16];
 
 	const size_t thread   = blockDim.x * blockIdx.x + threadIdx.x;
-	const size_t step     = gridDim.x * blockDim.x;
-	const size_t maxNonce = startNonce + threads;
+	const uint64_t step     = gridDim.x * blockDim.x;
+	const uint64_t maxNonce = startNonce + threads;
 
+	const int8_t r[][16] = {
+		{ 14, 10,  4,  8,  9, 15, 13,  6,  1, 12,  0,  2, 11,  7,  5,  3 },{ 11,  8, 12,  0,  5,  2, 15, 13, 10, 14,  3,  6,  7,  1,  9,  4 },
+		{  7,  9,  3,  1, 13, 12, 11, 14,  2,  6,  5, 10,  4,  0, 15,  8 },{  9,  0,  5,  7,  2,  4, 10, 15, 14,  1, 11, 12,  6,  8,  3, 13 },
+		{  2, 12,  6, 10,  0, 11,  8,  3,  4, 13,  7,  5, 15, 14,  1,  9 },{ 12,  5,  1, 15, 14, 13,  4, 10,  0,  7,  6,  3,  9,  2,  8, 11 },
+		{ 13, 11,  7, 14, 12,  1,  3,  9,  5,  0, 15,  4,  8,  6,  2, 10 }
+	};
 	const uint32_t z[16] = {
-				  0x243F6A88,	0x85A308D3,	0x13198A2E,	0x03707344,
-				  0xA4093822,	0x299F31D0,	0x082EFA98,	0xEC4E6C89,
-				  0x452821E6,	0x38D01377,	0xBE5466CF,	0x34E90C6C,
-				  0xC0AC29B7,	0xC97C50DD,	0x3F84D5B5,	0xB5470917
+		0x243F6A88, 0x85A308D3, 0x13198A2E, 0x03707344, 0xA4093822, 0x299F31D0, 0x082EFA98, 0xEC4E6C89,
+		0x452821E6, 0x38D01377, 0xBE5466CF, 0x34E90C6C, 0xC0AC29B7, 0xC97C50DD, 0x3F84D5B5, 0xB5470917
 	};
+
 //PREFETCH
-	const uint32_t h[6]  = {
-				  d_data[0],	d_data[1],	d_data[2],	d_data[4],
-				  d_data[5],	d_data[6]
-	};
+	#pragma unroll
+	for(int i=0;i<16;i++){
+		tmp[ i] = d_data[ i];
+	}
+
 	uint32_t m[16] = {
-				  d_data[7],	d_data[8],	d_data[9],	0,
+				  d_data[16],	d_data[17],	d_data[18],	0,
 				  0x80000000UL,	0,		0,		0,
 				  0,		0,		0,		0,
 				  0,		1,		0,		640
-	};
+	};		
 
-	#pragma unroll 12
-	for(int i=0;i<12;i++)
-		tmp[ i] = d_data[i+10];
+	const uint32_t h7 = d_data[19];
+	const uint32_t h6 = d_data[20];
 //END OF PREFETCH
-	for(size_t m3 = startNonce + thread ; m3<maxNonce ; m3+=step){
-
+	uint64_t m3 = startNonce + thread;
+loopstart:
+		if(m3>=maxNonce)return;
 		m[3]  = m3;
-
-		v[ 0] = h[ 0];		v[ 1] = h[ 1];		v[ 2] = h[ 2];		v[ 3] = h[ 3];
-		v[ 4] = tmp[11];	v[ 5] = tmp[ 3];	v[ 6] = tmp[ 5];	v[ 7] = tmp[10];
-		v[ 8] = tmp[ 1];	v[ 9] = tmp[ 7];	v[10] = tmp[ 6];	v[11] = tmp[ 9];
-		v[12] = tmp[ 0];	v[13] = tmp[ 2];	v[14] = tmp[ 4];	v[15] = tmp[ 8];
+		
+		#pragma unroll
+		for(int i=0;i<16;i++)
+			v[ i] = tmp[ i];
 
 		v[ 1]+= m[3] ^ z[2];
 		v[13] = __byte_perm(v[13] ^ v[1],0, 0x0321);
@@ -173,6 +214,7 @@ void vanilla_gpu_hash_16_8(const uint32_t threads, const uint32_t startNonce, ui
 		v[ 5] = ROTR32(v[5] ^ v[9], 7);
 		v[ 0]+= v[5];
 		v[15] = __byte_perm(v[15] ^ v[0],0, 0x1032);
+		
 		v[10]+= v[15];
 		v[ 5] = ROTR32(v[5] ^ v[10], 12);
 		v[ 0]+= z[8] + v[5];
@@ -180,56 +222,70 @@ void vanilla_gpu_hash_16_8(const uint32_t threads, const uint32_t startNonce, ui
 		v[10]+= v[15];
 		v[ 5] = ROTR32(v[5] ^ v[10], 7);
 
-		GSPREC( 1, 6,11,12,10,11);
-		GSPREC( 2, 7, 8,13,12,13);
-		GSPREC( 4, 3, 9,14,14,15);
-		GSPREC4(0, 3, 8,12,	14,10,	 1, 5, 9,13,	 4, 8,	 2, 6,10,14,	 9,15,	 4, 7,11,15,	13, 6);
-		GSPREC4(0, 5,10,15,	 1,12,	 1, 6,11,12,	 0, 2,	 2, 7, 8,13,	11, 7,	 4, 3, 9,14,	 5, 3);
-		GSPREC4(0, 3, 8,12,	11, 8,	 1, 5, 9,13,	12, 0,	 2, 6,10,14,	 5, 2,	 4, 7,11,15,	15,13);
-		GSPREC4(0, 5,10,15,	10,14,	 1, 6,11,12,	 3, 6,	 2, 7, 8,13,	 7, 1,	 4, 3, 9,14,	 9, 4);
-		GSPREC4(0, 3, 8,12,	 7, 9,	 1, 5, 9,13,	 3, 1,	 2, 6,10,14,	13,12,	 4, 7,11,15,	11,14);
-		GSPREC4(0, 5,10,15,	 2, 6,	 1, 6,11,12,	 5,10,	 2, 7, 8,13,	 4, 0,	 4, 3, 9,14,	15, 8);
-		GSPREC4(0, 3, 8,12,	 9, 0,	 1, 5, 9,13,	 5, 7,	 2, 6,10,14,	 2, 4,	 4, 7,11,15,	10,15);
-		GSPREC4(0, 5,10,15,	14, 1,	 1, 6,11,12,	11,12,	 2, 7, 8,13,	 6, 8,	 4, 3, 9,14,	 3,13);
-		GSPREC4(0, 3, 8,12,	 2,12,	 1, 5, 9,13,	 6,10,	 2, 6,10,14,	 0,11,	 4, 7,11,15,	 8, 3);
-		GSPREC4(0, 5,10,15,	 4,13,	 1, 6,11,12,	 7, 5,	 2, 7, 8,13,	15,14,	 4, 3, 9,14,	 1, 9);
-		GSPREC4(0, 3, 8,12,	12, 5,	 1, 5, 9,13,	 1,15,	 2, 6,10,14,	14,13,	 4, 7,11,15,	 4,10);
-		GSPREC4(0, 5,10,15,	 0, 7,	 1, 6,11,12,	 6, 3,	 2, 7, 8,13,	 9, 2,	 4, 3, 9,14,	 8,11);
-		GSPREC4(0, 3, 8,12,	13,11,	 1, 5, 9,13,	 7,14,	 2, 6,10,14,	12, 1,	 4, 7,11,15,	 3, 9);
+		GS3( 1, 6,11,12,10,11, 2, 7, 8,13,12,13, 3, 4, 9,14,14,15);
+		
+		#pragma unroll
+		for(int i=0;i<6;i++){
+			GS4(0, 4, 8,12,r[i][ 0],r[i][ 1], 1, 5, 9,13,r[i][ 2],r[i][ 3], 2, 6,10,14,r[i][ 4],r[i][ 5], 3, 7,11,15,r[i][ 6],r[i][ 7]);
+			GS4(0, 5,10,15,r[i][ 8],r[i][ 9], 1, 6,11,12,r[i][10],r[i][11], 2, 7, 8,13,r[i][12],r[i][13], 3, 4, 9,14,r[i][14],r[i][15]);
+		}
+		GS4(0, 4, 8,12,r[6][ 0],r[6][ 1], 1, 5, 9,13,r[6][ 2],r[6][ 3], 2, 6,10,14,r[6][ 4],r[6][ 5], 3, 7,11,15,r[6][ 6],r[6][ 7]);
 
-		v[ 0] += (m[ 5] ^ z[0]) + v[5];	v[15] = __byte_perm(v[15] ^ v[0],0, 0x1032);
-		v[10] += v[15];				v[ 5] = ROTR32(v[5] ^ v[10], 12);
-		v[ 0] += (m[ 0] ^ z[5]) + v[5];	v[15] = __byte_perm(v[15] ^ v[0],0, 0x0321);
+		v[ 0] += (m[ 5] ^ z[0]) + v[5];
+		v[ 2] += (m[ 8] ^ z[6]) + v[7];
+		v[13] = __byte_perm(v[13] ^ v[2],0, 0x1032);
+		v[15] = __byte_perm(v[15] ^ v[0],0, 0x1032);			
 
-		v[2] += (m[ 8] ^ z[6]) + v[7];	v[13] = __byte_perm(v[13] ^ v[2],0, 0x1032);
-		v[8] += v[13];				v[ 7] = ROTR32(v[7] ^ v[8], 12);
-		v[2] += (m[ 6] ^ z[8]) + v[7];	v[13] = __byte_perm(v[13] ^ v[2],0, 0x0321);
-		v[8] += v[13];				v[ 7] = ROTR32(v[7] ^ v[8], 7);
-
+		v[ 8] += v[13];
+		v[10] += v[15];
+		
+		v[ 5] = ROTR32(v[ 5] ^ v[10], 12);
+		v[ 7] = ROTR32(v[ 7] ^ v[ 8], 12);
+		
+		v[ 0] += (m[ 0] ^ z[5]) + v[5];
+		v[ 2] += (m[ 6] ^ z[8]) + v[7];
+		
+		v[15] = __byte_perm(v[15] ^ v[ 0],0, 0x0321);
+		v[13] = __byte_perm(v[13] ^ v[ 2],0, 0x0321);
+		
+		v[8] += v[13];
+		v[7]  = ROTR32(v[7] ^ v[8], 7);
+		
 		// only compute h6 & 7
-		if((h[5]^v[7]^v[15])==0){
-			GSPREC(1, 6, 11, 12, 15, 4);
-			v[ 4] += (m[2] ^ z[10]) + v[3];
-			v[14]  = __byte_perm(v[14] ^ v[4],0, 0x1032);
+		if((v[15]^h7)==v[7]){
+			v[ 1] += (m[15] ^ z[ 4]) + v[6];
+			v[ 3] += (m[2] ^ z[10]) + v[4];
+			v[12]  = __byte_perm(v[12] ^ v[ 1],0, 0x1032);
+			v[14]  = __byte_perm(v[14] ^ v[3],0, 0x1032);
+			v[11] += v[12];
 			v[ 9] += v[14];
-			v[ 3]  = ROTR32(v[3] ^ v[9],12);
-			v[ 4] += (m[10] ^ z[2]) + v[3];
-			v[14]  = __byte_perm(v[14] ^ v[4],0, 0x0321);
-			if(cuda_swab32(h[4]^v[6]^v[14]) <= highTarget) {
+			v[ 6]  = ROTR32(v[ 6] ^ v[11], 12);
+
+			v[ 1] += (m[ 4] ^ z[15]) + v[ 6];
+			v[ 3] += (m[10] ^ z[ 2]) + ROTR32(v[ 4] ^ v[ 9],12);
+			v[12]  = __byte_perm(v[12] ^ v[ 1],0, 0x0321);
+			v[14]  = __byte_perm(v[14] ^ v[ 3],0, 0x0321);
+
+			v[11] += v[12];
+			v[ 6] = ROTR32(v[ 6] ^ v[11], 7);
+
+			if(cuda_swab32(h6^v[6]^v[14]) <= highTarget) {
 #if NBN == 2
-			/* keep the smallest nonce, + extra one if found */
-			if (m[3] < resNonce[0]){
-				resNonce[1] = resNonce[0];
-				resNonce[0] = m[3];
-			}
-			else
-				resNonce[1] = m[3];
+				/* keep the smallest nonce, + extra one if found */
+				if (m[3] < resNonce[0]){
+					resNonce[1] = resNonce[0];
+					resNonce[0] = m[3];
+				}
+				else
+					resNonce[1] = m[3];
 #else
-			resNonce[0] = m[3];
+				resNonce[0] = m[3];
 #endif
+				return; //<-- this may cause a problem on extranonce if the extranonce is on position current_nonce + X * step where X=[1,2,3..,N]
 			}
 		}
-	}
+	m3+=step;
+	goto loopstart;
 }
 
 
@@ -293,11 +349,20 @@ void vanilla_gpu_hash_16_8(const uint32_t threads, const uint32_t startNonce, ui
 
 
 __host__
-void vanilla_cpu_setBlock_16(const uint32_t* endiandata, uint32_t *penddata){
+void vanilla_cpu_setBlock_16(const int thr_id,const uint32_t* endiandata, uint32_t *penddata){
 
-	uint32_t _ALIGN(32) h[22];
-	h[0]=0x6A09E667;    h[1]=0xBB67AE85;    h[2]=0x3C6EF372;    h[3]=0xA54FF53A;
-	h[4]=0x510E527F;    h[5]=0x9B05688C;    h[6]=0x1F83D9AB;    h[7]=0x5BE0CD19;
+	const uint32_t _ALIGN(64) z[16] = {
+		SPH_C32(0x243F6A88), SPH_C32(0x85A308D3), SPH_C32(0x13198A2E), SPH_C32(0x03707344),
+		SPH_C32(0xA4093822), SPH_C32(0x299F31D0), SPH_C32(0x082EFA98), SPH_C32(0xEC4E6C89),
+		SPH_C32(0x452821E6), SPH_C32(0x38D01377), SPH_C32(0xBE5466CF), SPH_C32(0x34E90C6C),
+		SPH_C32(0xC0AC29B7), SPH_C32(0xC97C50DD), SPH_C32(0x3F84D5B5), SPH_C32(0xB5470917)
+	};
+	const uint32_t _ALIGN(64) init[8] = {
+		SPH_C32(0x6A09E667), SPH_C32(0xBB67AE85), SPH_C32(0x3C6EF372), SPH_C32(0xA54FF53A),
+		SPH_C32(0x510E527F), SPH_C32(0x9B05688C), SPH_C32(0x1F83D9AB), SPH_C32(0x5BE0CD19)
+	};
+	
+	uint32_t _ALIGN(64) h[22];
 
 	__m128i row1, row2, row3, row4;
 	__m128i buf1, buf2;
@@ -310,113 +375,97 @@ void vanilla_cpu_setBlock_16(const uint32_t* endiandata, uint32_t *penddata){
 		{  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15 } , { 14, 10,  4,  8,  9, 15, 13,  6,  1, 12,  0,  2, 11,  7,  5,  3 } ,
 		{ 11,  8, 12,  0,  5,  2, 15, 13, 10, 14,  3,  6,  7,  1,  9,  4 } , {  7,  9,  3,  1, 13, 12, 11, 14,  2,  6,  5, 10,  4,  0, 15,  8 } ,
 		{  9,  0,  5,  7,  2,  4, 10, 15, 14,  1, 11, 12,  6,  8,  3, 13 } , {  2, 12,  6, 10,  0, 11,  8,  3,  4, 13,  7,  5, 15, 14,  1,  9 } ,
-		{ 12,  5,  1, 15, 14, 13,  4, 10,  0,  7,  6,  3,  9,  2,  8, 11 } , { 13, 11,  7, 14, 12,  1,  3,  9,  5,  0, 15,  4,  8,  6,  2, 10 } ,
-		{  6, 15, 14,  9, 11,  3,  0,  8, 12,  2, 13,  7,  1,  4, 10,  5 } , { 10,  2,  8,  4,  7,  6,  1,  5, 15, 11,  9, 14,  3, 12, 13 , 0 } ,
-		{  0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14, 15 } , { 14, 10,  4,  8,  9, 15, 13,  6,  1, 12,  0,  2, 11,  7,  5,  3 } ,
-		{ 11,  8, 12,  0,  5,  2, 15, 13, 10, 14,  3,  6,  7,  1,  9,  4 } , {  7,  9,  3,  1, 13, 12, 11, 14,  2,  6,  5, 10,  4,  0, 15,  8 }
+		{ 12,  5,  1, 15, 14, 13,  4, 10,  0,  7,  6,  3,  9,  2,  8, 11 } , { 13, 11,  7, 14, 12,  1,  3,  9,  5,  0, 15,  4,  8,  6,  2, 10 }
 	};
-	static const uint32_t z[16] = {
-		0x243F6A88, 0x85A308D3, 0x13198A2E, 0x03707344, 0xA4093822, 0x299F31D0, 0x082EFA98, 0xEC4E6C89,
-		0x452821E6, 0x38D01377, 0xBE5466CF, 0x34E90C6C, 0xC0AC29B7, 0xC97C50DD, 0x3F84D5B5, 0xB5470917
-	};
+
+	h[ 0] = init[ 0];			h[ 1] = init[ 1];
+	h[ 2] = init[ 2];			h[21] = init[ 3];
+	h[ 4] = init[ 4];			h[20] = init[ 5];
+	h[19] = init[ 6];			h[16] = init[ 7];
 	/* get message */
-	m.u128[0] = LOADU(endiandata + 0);
-	m.u128[1] = LOADU(endiandata + 4);
-	m.u128[2] = LOADU(endiandata + 8);
-	m.u128[3] = LOADU(endiandata + 12);
-	BSWAP32(m.u128[0]); BSWAP32(m.u128[1]); BSWAP32(m.u128[2]); BSWAP32(m.u128[3]);
+	m.u128[0] = LOADU(endiandata + 0);	m.u128[1] = LOADU(endiandata + 4);
+	m.u128[2] = LOADU(endiandata + 8);	m.u128[3] = LOADU(endiandata + 12);
+	BSWAP32(m.u128[0]); 			BSWAP32(m.u128[1]);
+	BSWAP32(m.u128[2]);			BSWAP32(m.u128[3]);
 
-	row1 = _mm_set_epi32(h[ 3], h[ 2], h[ 1], h[ 0]);
-	row2 = _mm_set_epi32(h[ 7], h[ 6], h[ 5], h[ 4]);
-	row3 = _mm_set_epi32(0x03707344, 0x13198A2E, 0x85A308D3, 0x243F6A88);
-	row4 = _mm_set_epi32(0xEC4E6C89, 0x082EFA98, 0x299F31D0^512, 0xA4093822^512);
+	row1 = _mm_set_epi32(h[21], h[ 2], h[ 1], h[ 0]);
+	row2 = _mm_set_epi32(h[16], h[19], h[20], h[ 4]);
+	row3 = _mm_set_epi32(z[ 3], z[ 2], z[ 1], z[ 0]);
+	row4 = _mm_set_epi32(z[ 7], z[ 6], z[ 5]^512, z[ 4]^512);
 
-	round( 0);  round( 1);  round( 2);
-	round( 3);  round( 4);  round( 5);
-	round( 6);  round( 7);
+	round( 0);	round( 1);	round( 2);	round( 3);
+	round( 4);	round( 5);	round( 6);	round( 7);
 
 	_mm_store_si128( (__m128i *)m.u32, _mm_xor_si128(row1,row3));
-	h[ 0] = 0x6A09E667^m.u32[ 0];
-	h[ 1] = 0xBB67AE85^m.u32[ 1];
-	h[ 2] = 0x3C6EF372^m.u32[ 2];
-	h[ 3] = 0xA54FF53A^m.u32[ 3];
+	h[ 0] = init[ 0]^m.u32[ 0];	h[ 1] = init[ 1]^m.u32[ 1];
+	h[ 2] = init[ 2]^m.u32[ 2];	h[21] = init[ 3]^m.u32[ 3];
 	_mm_store_si128( (__m128i *)m.u32, _mm_xor_si128(row2,row4));
-	h[ 4] = 0x510E527F^m.u32[ 0];
-	h[ 5] = 0x9B05688C^m.u32[ 1];
-	h[ 6] = 0x1F83D9AB^m.u32[ 2];
-	h[ 7] = 0x5BE0CD19^m.u32[ 3];
+	h[ 4] = init[ 4]^m.u32[ 0];	h[20] = init[ 5]^m.u32[ 1];
+	h[19] = init[ 6]^m.u32[ 2];	h[16] = init[ 7]^m.u32[ 3];
 
-	uint32_t tmp = h[ 5];
-	h[ 5] = h[ 6];
-	h[ 6] = h[ 7];
-	h[ 7] = penddata[ 0];
-	h[ 8] = penddata[ 1];
-	h[ 9] = penddata[ 2];
-	h[10] = z[ 4] ^ 640;
-	h[11] = z[ 0];
+	uint32_t tmp = h[20];
+	h[20] = h[19];
+	h[19] = h[16];
+	h[16] = penddata[ 0];
+	h[17] = penddata[ 1];
+	h[18] = penddata[ 2];
+	h[12] = z[ 4] ^ 640;
+	h[ 8] = z[ 0];
 
-	h[ 0] += (h[ 7] ^ z[ 1]) + h[ 4];
-	h[10]  = SPH_ROTR32(h[10] ^ h[0],16);
-	h[11] += h[10];
-	h[ 4]  = SPH_ROTR32(h[4] ^ h[11], 12);
-	h[ 0] += (h[8] ^ z[ 0]) + h[4];
-	h[10]  = SPH_ROTR32(h[10] ^ h[0],8);
-	h[11] += h[10];
-	h[ 4]  = SPH_ROTR32(h[4] ^ h[11], 7);
+	h[ 0] += (h[16] ^ z[ 1]) + h[ 4];
+	h[12]  = SPH_ROTR32(h[12] ^ h[0],16);
+	h[ 8] += h[12];
+	h[ 4]  = SPH_ROTR32(h[ 4] ^ h[ 8], 12);
+	h[ 0] += (h[17] ^ z[ 0]) + h[ 4];
+	h[12]  = SPH_ROTR32(h[12] ^ h[0],8);
+	h[ 8] += h[12];
+	h[ 4]  = SPH_ROTR32(h[ 4] ^ h[ 8], 7);
 
-	h[1] += (h[ 9] ^ SPH_C32(0x03707344)) + tmp;
+	h[1] += (h[18] ^ z[ 3]) + tmp;
 
-	h[12] = SPH_ROTR32(SPH_C32(0x299F31D0) ^ 640 ^ h[1],16);
-	h[13] = ROTR32(tmp ^ (SPH_C32(0x85A308D3) + h[12]), 12);
+	h[13] = SPH_ROTR32(z[ 5] ^ 640 ^ h[1],16);
+	h[ 5] = ROTR32(tmp ^ (z[ 1] + h[13]), 12);
 
-	h[ 1] += h[13];
-	h[ 2] += (0x80000000UL ^ SPH_C32(0x299F31D0)) + h[5];
+	h[ 1] += h[ 5];
+	h[ 2] += (0x80000000UL ^ z[ 5]) + h[20];
 
-	h[14]  = SPH_ROTR32(SPH_C32(0x082EFA98) ^ h[2], 16);
-	h[15]  = SPH_C32(0x13198A2E) + h[14];
-	h[15]  = SPH_ROTR32(h[5] ^ h[15], 12);
+	h[14]  = SPH_ROTR32(z[ 6] ^ h[2], 16);
+	h[ 6]  = z[ 2] + h[14];
+	h[ 6]  = SPH_ROTR32(h[20] ^ h[ 6], 12);
 
-	h[ 3] += SPH_C32(0xEC4E6C89) + h[6];
-	h[ 0] += SPH_C32(0x38D01377);
+	h[21] += z[ 7] + h[19];
+	h[ 0] += z[ 9];
 
-	h[ 2] += SPH_C32(0xA4093822) + h[15];
+	h[ 2] += z[ 4] + h[ 6];
 
-	h[16] = 0x13198A2E + h[14];
-	h[17] = 0x85A308D3 + h[12];
+	h[ 9] = z[ 1] + h[13];
+	h[10] = z[ 2] + h[14];
 	
 	h[14] = SPH_ROTR32(h[14] ^ h[2],8); //0x0321
-	h[16]+=h[14];
+	h[10]+=h[14];
 	
-	h[15] = SPH_ROTR32(h[15] ^ h[16],7);
-	h[18] = SPH_ROTR32(0xEC4E6C89 ^ h[3],16);
+	h[ 6] = SPH_ROTR32(h[ 6] ^ h[10],7);
+	h[15] = SPH_ROTR32(z[ 7] ^ h[21],16);
 	
-	h[19] = SPH_C32(0x03707344) + h[18];
-	h[20] = SPH_ROTR32(h[6] ^ h[19], 12);
-	h[21] = h[3] + h[20] + SPH_C32(0x082EFA98);
+	h[11] = z[ 3] + h[15];
+	h[ 7] = SPH_ROTR32(h[19] ^ h[11], 12);
+	h[ 3] = h[21] + h[ 7] + z[ 6];
 	
-	h[18] = SPH_ROTR32(h[18] ^ h[21],8);
-	h[19]+= h[18];
-	h[20] = ROTR32(h[20] ^ h[19],7);
+	h[15] = SPH_ROTR32(h[15] ^ h[ 3],8);
+	h[11]+= h[15];
+	h[ 7] = ROTR32(h[ 7] ^ h[11],7);
 	
-	cudaMemcpyToSymbol(d_data, h, 22*sizeof(uint32_t), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbolAsync(d_data, h, 21*sizeof(uint32_t), 0, cudaMemcpyHostToDevice, streams[thr_id]);
 }
 
 static bool init[MAX_GPUS] = { 0 };
 
-extern "C" int scanhash_blake256(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done, const int8_t blakerounds)
-{
+extern "C" int scanhash_blake256(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done, const int8_t blakerounds){
 	uint32_t *pdata = work->data;
 	uint32_t *ptarget = work->target;
 	const uint32_t first_nonce  = pdata[19];
 	const uint32_t targetHigh   = ptarget[6];
 	int dev_id = device_map[thr_id];
-	int intensity = (device_sm[dev_id] > 500 && !is_windows()) ? 30 : 24;
-	if (device_sm[dev_id] < 350) intensity = 22;
-
-	uint32_t throughput = cuda_default_throughput(thr_id, 1U << intensity);
-	if (init[thr_id]) throughput = min(throughput, max_nonce - first_nonce);
-
-	int rc = 0;
 
 	if (!init[thr_id]) {
 		cudaSetDevice(dev_id);
@@ -427,24 +476,34 @@ extern "C" int scanhash_blake256(int thr_id, struct work* work, uint32_t max_non
 			cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
 			CUDA_LOG_ERROR();
 		}
-		CUDA_CALL_OR_RET_X(cudaHostAlloc((void**)&h_resNonce[thr_id], NBN*sizeof(uint32_t), cudaHostAllocMapped),0);
-		CUDA_CALL_OR_RET_X(cudaHostGetDevicePointer((void**)&d_resNonce[thr_id],(void*)h_resNonce[thr_id], 0),0);
+		CUDA_CALL_OR_RET_X(cudaMalloc(&d_resNonce[thr_id], NBN * sizeof(uint32_t)), -1);
+		CUDA_CALL_OR_RET_X(cudaMallocHost(&h_resNonce[thr_id], NBN * sizeof(uint32_t)), -1);
+		cudaStreamCreate(&streams[thr_id]);
 		init[thr_id] = true;
 	}
 
-	uint32_t endiandata[20];
+	uint32_t _ALIGN(64) endiandata[20];
 
 	for (int k = 0; k < 16; k++)
 		be32enc(&endiandata[k], pdata[k]);
+		
+	cudaMemsetAsync(d_resNonce[thr_id], 0xff, sizeof(uint32_t),streams[thr_id]);
 
-	vanilla_cpu_setBlock_16(endiandata,&pdata[16]);
+	vanilla_cpu_setBlock_16(thr_id,endiandata,&pdata[16]);
 
-	cudaMemset(d_resNonce[thr_id], 0xff, sizeof(uint32_t));
+	int intensity = (device_sm[dev_id] > 500 && !is_windows()) ? 30 : 24;
+	if (device_sm[dev_id] < 350) intensity = 22;
+	uint32_t throughput = cuda_default_throughput(thr_id, 1U << intensity);
+	if (init[thr_id]) throughput = min(throughput, max_nonce - first_nonce);
+	
 	const dim3 grid((throughput + (NPT*TPB)-1)/(NPT*TPB));
 	const dim3 block(TPB);
+	int rc = 0;
+		
 	do {
-		vanilla_gpu_hash_16_8<<<grid,block>>>(throughput, pdata[19], d_resNonce[thr_id], targetHigh);
-		cudaThreadSynchronize(); //Dont forget me. If you do, i'll probably read garbage on next instruction
+		vanilla_gpu_hash_16_8<<<grid,block, 0, streams[thr_id]>>>(throughput, pdata[19], d_resNonce[thr_id], targetHigh);
+		cudaMemcpyAsync(h_resNonce[thr_id], d_resNonce[thr_id], NBN*sizeof(uint32_t), cudaMemcpyDeviceToHost,streams[thr_id]);
+		cudaStreamSynchronize(streams[thr_id]);
 		
 		if (h_resNonce[thr_id][0] != UINT32_MAX){
 			uint32_t vhashcpu[8];
