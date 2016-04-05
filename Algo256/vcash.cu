@@ -66,16 +66,6 @@ extern "C" void vcashHash(void *output, const void *input){
 	v[ b] = ROTR32(v[ b] ^ v[ c], 7);		v[b1] = ROTR32(v[b1] ^ v[c1], 7);		v[b2] = ROTR32(v[b2] ^ v[c2], 7);		v[b3] = ROTR32(v[b3] ^ v[c3], 7); \
 }
 
-static __device__ __forceinline__ uint32_t xor3x(uint32_t a,uint32_t b,uint32_t c){
-	uint32_t result;
-	#if __CUDA_ARCH__ >= 500
-		asm ("lop3.b32 %0, %1, %2, %3, 0x96;" : "=r"(result) : "r"(a), "r"(b),"r"(c)); //0x96 = 0xF0 ^ 0xCC ^ 0xAA
-	#else
-		result = a^b^c;
-	#endif
-	return result;
-}
-
 __global__ __launch_bounds__(TPB,1)
 void vcash_gpu_hash_16_8(const uint32_t threads, const uint32_t startNonce, uint32_t *resNonce,const uint64_t highTarget){
 	uint32_t v[16];

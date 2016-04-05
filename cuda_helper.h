@@ -489,28 +489,6 @@ static __host__ __device__ __forceinline__ uint64_t devectorize(uint2 v) {
 /**
  * uint2 direct ops by c++ operator definitions
  */
-static __device__ __forceinline__ uint2 operator^ (uint2 a, uint2 b) { return make_uint2(a.x ^ b.x, a.y ^ b.y); }
-static __device__ __forceinline__ uint2 operator& (uint2 a, uint2 b) { return make_uint2(a.x & b.x, a.y & b.y); }
-static __device__ __forceinline__ uint2 operator| (uint2 a, uint2 b) { return make_uint2(a.x | b.x, a.y | b.y); }
-static __device__ __forceinline__ uint2 operator~ (uint2 a) { return make_uint2(~a.x, ~a.y); }
-static __device__ __forceinline__ void operator^= (uint2 &a, uint2 b) { a = a ^ b; }
-
-static __device__ __forceinline__ uint2 operator+ (uint2 a, uint2 b) {
-#ifdef __CUDA_ARCH__
-	uint2 result;
-	asm("{\n\t"
-		"add.cc.u32 %0,%2,%4; \n\t"
-		"addc.u32 %1,%3,%5;   \n\t"
-	"}\n\t"
-		: "=r"(result.x), "=r"(result.y) : "r"(a.x), "r"(a.y), "r"(b.x), "r"(b.y));
-	return result;
-#else
-	return vectorize(devectorize(a) + devectorize(b));
-#endif
-}
-static __device__ __forceinline__ void operator+= (uint2 &a, uint2 b) { a = a + b; }
-
-
 static __device__ __forceinline__ uint2 operator- (uint2 a, uint2 b) {
 #if defined(__CUDA_ARCH__) && CUDA_VERSION < 7000
 	uint2 result;
@@ -702,4 +680,14 @@ static uint2 SHR2(uint2 a, int offset)
 #endif
 }
 
+//LUT 3x
+static __device__ __forceinline__ uint32_t xor3x(uint32_t a,uint32_t b,uint32_t c){
+	uint32_t result;
+	#if __CUDA_ARCH__ >= 500
+		asm ("lop3.b32 %0, %1, %2, %3, 0x96;" : "=r"(result) : "r"(a), "r"(b),"r"(c)); //0x96 = 0xF0 ^ 0xCC ^ 0xAA
+	#else
+		result = a^b^c;
+	#endif
+	return result;
+}
 #endif // #ifndef CUDA_HELPER_H
