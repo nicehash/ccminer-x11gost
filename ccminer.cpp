@@ -108,7 +108,7 @@ int opt_timeout = 300; // curl
 int opt_scantime = 10;
 static json_t *opt_config;
 static const bool opt_time = true;
-volatile enum sha_algos opt_algo = ALGO_VANILLA;
+volatile enum sha_algos opt_algo = ALGO_VCASH;
 int opt_n_threads = 0;
 int gpu_threads = 1;
 int64_t opt_affinity = -1L;
@@ -207,7 +207,7 @@ static char const usage[] = "\
 Usage: " PROGRAM_NAME " [OPTIONS]\n\
 Options:\n\
   -a, --algo=ALGO       specify the hash algorithm to use\n\
-			vanilla     Blake256 (VNL)\n\
+			Vcash     Blake256 (XVC)\n\
 			whirlpoolx  WhirlpoolX (VNL)\n\
   -d, --devices         Comma separated list of CUDA devices to use.\n\
                         Device IDs start counting from 0! Alternatively takes\n\
@@ -720,7 +720,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 		char *ntimestr, *noncestr, *xnonce2str, *nvotestr;
 
 		switch (opt_algo) {
-		case ALGO_VANILLA:
+		case ALGO_VCASH:
 			// fast algos require that...
 			check_dups = true;
 		default:
@@ -1610,7 +1610,7 @@ static void *miner_thread(void *userdata)
 		 *    before hashrate is computed */
 		if (max64 < minmax) {
 			switch (opt_algo) {
-			case ALGO_VANILLA:
+			case ALGO_VCASH:
 				minmax = 0x80000000U;
 				break;
 			case ALGO_WHIRLPOOLX:
@@ -1656,8 +1656,8 @@ static void *miner_thread(void *userdata)
 
 		/* scan nonces for a proof-of-work hash */
 		switch (opt_algo) {
-			case ALGO_VANILLA:
-				rc = scanhash_blake256(thr_id, &work, max_nonce, &hashes_done,8);
+			case ALGO_VCASH:
+				rc = scanhash_vcash(thr_id, &work, max_nonce, &hashes_done);
 				break;
 			case ALGO_WHIRLPOOLX:
 				rc = scanhash_whirlpoolx(thr_id, &work, max_nonce, &hashes_done);
@@ -2778,9 +2778,9 @@ int main(int argc, char *argv[])
 	printf("BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo (tpruvot)\n\n");
 
 	// extra credits..
-	if (opt_algo == ALGO_WHIRLPOOLX || opt_algo == ALGO_VANILLA) {
+	if (opt_algo == ALGO_WHIRLPOOLX || opt_algo == ALGO_VCASH) {
 		printf("Optimized whirlpoolx & 8-round blake by Alexis Provos.\n");
-		printf("VNL donation address: Vr5oCen8NrY6ekBWFaaWjCUFBH4dyiS57W\n\n");
+		printf("XVC donation address: Vr5oCen8NrY6ekBWFaaWjCUFBH4dyiS57W\n\n");
 	}
 	
 	rpc_user = strdup("");

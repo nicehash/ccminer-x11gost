@@ -21,7 +21,7 @@ ccminer_SOURCES	= elist.h miner.h compat.h \
 			  crc32.c \
 			  ccminer.cpp pools.cpp util.cpp bench.cpp bignum.cpp \
 			  api.cpp hashlog.cpp nvml.cpp stats.cpp sysinfos.cpp cuda.cpp \
-			  Algo256/blake256.cu \
+			  Algo256/vcash.cu \
 			  cuda_checkhash.cu \
 			  sph/blake.c \
 			  sph/sha2.c \
