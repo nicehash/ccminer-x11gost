@@ -66,7 +66,7 @@ extern "C" void vcashHash(void *output, const void *input){
 	v[ b] = ROTR32(v[ b] ^ v[ c], 7);		v[b1] = ROTR32(v[b1] ^ v[c1], 7);		v[b2] = ROTR32(v[b2] ^ v[c2], 7);		v[b3] = ROTR32(v[b3] ^ v[c3], 7); \
 }
 
-__global__ __launch_bounds__(TPB,1)
+__global__
 void vcash_gpu_hash_16_8(const uint32_t threads, const uint32_t startNonce, uint32_t *resNonce,const uint64_t highTarget){
 	uint32_t v[16];
 	uint32_t tmp[16];

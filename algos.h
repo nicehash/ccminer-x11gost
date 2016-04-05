@@ -5,8 +5,9 @@
 #include "compat.h"
 
 enum sha_algos {
-	ALGO_VANILLA,
+	ALGO_VCASH,
 	ALGO_WHIRLPOOLX,
+	ALGO_KECCAK,
 	ALGO_AUTO,
 	ALGO_COUNT
 };
@@ -14,8 +15,9 @@ enum sha_algos {
 extern volatile enum sha_algos opt_algo;
 
 static const char *algo_names[] = {
-	"vanilla",
+	"vcash",
 	"whirlpoolx",
+	"keccak",
 	"auto", /* reserved for multi algo */
 	""
 };

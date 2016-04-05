@@ -108,7 +108,7 @@ int opt_timeout = 300; // curl
 int opt_scantime = 10;
 static json_t *opt_config;
 static const bool opt_time = true;
-volatile enum sha_algos opt_algo = ALGO_VCASH;
+volatile enum sha_algos opt_algo = ALGO_AUTO;
 int opt_n_threads = 0;
 int gpu_threads = 1;
 int64_t opt_affinity = -1L;
@@ -1235,7 +1235,14 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 	work->pooln = sctx->pooln;
 
 	/* Generate merkle root */
-	sha256d(merkle_root, sctx->job.coinbase, (int)sctx->job.coinbase_size);
+	switch (opt_algo) {
+		case ALGO_KECCAK:
+			SHA256((uchar*)sctx->job.coinbase, sctx->job.coinbase_size, (uchar*)merkle_root);
+			break;
+		case ALGO_VCASH:
+		default:
+			sha256d(merkle_root, sctx->job.coinbase, (int)sctx->job.coinbase_size);
+	}	
 
 	for (i = 0; i < sctx->job.merkle_count; i++) {
 		memcpy(merkle_root + 32, sctx->job.merkle[i], 32);
@@ -1277,8 +1284,14 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 	if (opt_difficulty == 0.)
 		opt_difficulty = 1.;
 
-	work_set_target(work, sctx->job.diff / opt_difficulty);
-
+	switch (opt_algo) {
+		case ALGO_KECCAK:
+			work_set_target(work, sctx->job.diff / (256.0 * opt_difficulty));
+			break;
+		default:
+			work_set_target(work, sctx->job.diff / opt_difficulty);
+	}
+	
 	if (stratum_diff != sctx->job.diff) {
 		char sdiff[32] = { 0 };
 		// store for api stats
@@ -1610,6 +1623,7 @@ static void *miner_thread(void *userdata)
 		 *    before hashrate is computed */
 		if (max64 < minmax) {
 			switch (opt_algo) {
+			case ALGO_KECCAK:			
 			case ALGO_VCASH:
 				minmax = 0x80000000U;
 				break;
@@ -1656,6 +1670,9 @@ static void *miner_thread(void *userdata)
 
 		/* scan nonces for a proof-of-work hash */
 		switch (opt_algo) {
+			case ALGO_KECCAK:
+				rc = scanhash_keccak256(thr_id, &work, max_nonce, &hashes_done);
+				break;
 			case ALGO_VCASH:
 				rc = scanhash_vcash(thr_id, &work, max_nonce, &hashes_done);
 				break;
@@ -2766,23 +2783,17 @@ int main(int argc, char *argv[])
 	long flags;
 	int i;
 
-	printf("*** ccminer " PACKAGE_VERSION " for nVidia GPUs by tpruvot@github ***\n");
+	printf("*** ccminer " PACKAGE_VERSION " for nVidia GPUs from alexis78@github ***\n");
 #ifdef _MSC_VER
 	printf("    Built with VC++ 2013 and nVidia CUDA SDK %d.%d\n\n",
 #else
 	printf("    Built with the nVidia CUDA Toolkit %d.%d\n\n",
 #endif
 		CUDART_VERSION/1000, (CUDART_VERSION % 1000)/10);
+	printf("  Based on pooler cpuminer 2.3.2 and the tpruvot@github fork\n");		
 	printf("  Originally based on Christian Buchner and Christian H. project\n");
 	printf("  Include some of the work of djm34, sp, tsiv and klausT.\n\n");
-	printf("BTC donation address: 1AJdfCpLWPNoAMDfHF1wD5y8VgKSSTHxPo (tpruvot)\n\n");
 
-	// extra credits..
-	if (opt_algo == ALGO_WHIRLPOOLX || opt_algo == ALGO_VCASH) {
-		printf("Optimized whirlpoolx & 8-round blake by Alexis Provos.\n");
-		printf("XVC donation address: Vr5oCen8NrY6ekBWFaaWjCUFBH4dyiS57W\n\n");
-	}
-	
 	rpc_user = strdup("");
 	rpc_pass = strdup("");
 	rpc_url = strdup("");

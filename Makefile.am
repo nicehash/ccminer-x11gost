@@ -22,8 +22,9 @@ ccminer_SOURCES	= elist.h miner.h compat.h \
 			  ccminer.cpp pools.cpp util.cpp bench.cpp bignum.cpp \
 			  api.cpp hashlog.cpp nvml.cpp stats.cpp sysinfos.cpp cuda.cpp \
 			  Algo256/vcash.cu \
+			  Algo256/cuda_keccak256.cu Algo256/keccak256.cu \
 			  cuda_checkhash.cu \
-			  sph/blake.c \
+			  sph/blake.c sph/keccak.c sph/shavite.c sph/simd.c\
 			  sph/sha2.c \
 			  sph/whirlpool.c \
 	  		  x15/cuda_whirlpoolx.cu x15/whirlpoolx.cu
@@ -49,12 +50,15 @@ nvcc_ARCH += -gencode=arch=compute_35,code=\"sm_35,compute_35\"
 #nvcc_ARCH += -gencode=arch=compute_20,code=\"sm_21,compute_20\"
 
 nvcc_FLAGS = $(nvcc_ARCH) @CUDA_INCLUDES@ -I. @CUDA_CFLAGS@
-nvcc_FLAGS += $(JANSSON_INCLUDES) --ptxas-options="-v -dlcm=cg"
+nvcc_FLAGS += $(JANSSON_INCLUDES) --ptxas-options="-v"
 
 # we're now targeting all major compute architectures within one binary.
 .cu.o:
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 -o $@ -c $<
 
-Algo256/blake256.o: Algo256/blake256.cu
-	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 -o $@ -c $<
+Algo256/vcash.o: Algo256/vcash.cu
+	$(NVCC) $(nvcc_FLAGS) --maxrregcount=48 --ptxas-options="-dlcm=cg" -o $@ -c $<
+	
+Algo256/cuda_keccak256.o: Algo256/cuda_keccak256.cu
+	$(NVCC) $(nvcc_FLAGS) --maxrregcount=72 --ptxas-options="-dlcm=cg" -o $@ -c $<
 

@@ -1894,6 +1894,9 @@ void print_hash_tests(void)
 	whirlxHash(&hash[0], &buf[0]);
 	printpfx("whirlpoolx", hash);
 
+	keccak256_hash(&hash[0], &buf[0]);
+	printpfx("keccak", hash);
+	
 	printf("\n");
 
 	do_gpu_tests();

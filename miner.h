@@ -263,6 +263,7 @@ struct work;
 
 extern int scanhash_vcash(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_whirlpoolx(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
+extern int scanhash_keccak256(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_sha256d(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done);
 
 /* free device allocated memory per algo */
@@ -270,6 +271,7 @@ void algo_free_all(int thr_id);
 
 extern void free_blake256(int thr_id);
 extern void free_whirlx(int thr_id);
+extern void free_keccak256(int thr_id);
 //extern void free_sha256d(int thr_id);
 
 /* api related */
@@ -700,6 +702,7 @@ void applog_compare_hash(unsigned char *hash, unsigned char *hash2);
 void print_hash_tests(void);
 void vcashHash(void *output, const void *input);
 void whirlxHash(void *state, const void *input);
+void keccak256_hash(void *state, const void *input);
 
 #ifdef __cplusplus
 }
