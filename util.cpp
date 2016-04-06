@@ -1888,8 +1888,8 @@ void print_hash_tests(void)
 
 	printf(CL_WHT "CPU HASH ON EMPTY BUFFER RESULTS:" CL_N "\n");
 
-	vcashHash(&hash[0], &buf[0]);
-	printpfx("Vcash / blake-8round", hash);
+	blake256_8roundHash(&hash[0], &buf[0]);
+	printpfx("blake256 / 8round", hash);
 
 	whirlxHash(&hash[0], &buf[0]);
 	printpfx("whirlpoolx", hash);

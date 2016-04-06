@@ -261,7 +261,7 @@ void sha256d(unsigned char *hash, const unsigned char *data, int len);
 
 struct work;
 
-extern int scanhash_vcash(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
+extern int scanhash_blake256_8round(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_whirlpoolx(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_keccak256(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_sha256d(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done);
@@ -700,7 +700,7 @@ void applog_hash(unsigned char *hash);
 void applog_compare_hash(unsigned char *hash, unsigned char *hash2);
 
 void print_hash_tests(void);
-void vcashHash(void *output, const void *input);
+void blake256_8roundHash(void *output, const void *input);
 void whirlxHash(void *state, const void *input);
 void keccak256_hash(void *state, const void *input);
 

@@ -43,7 +43,7 @@ static uint32_t		*d_resNonce[MAX_GPUS];
 static uint32_t		*h_resNonce[MAX_GPUS];
 
 /* hash by cpu with blake 256 */
-extern "C" void vcashHash(void *output, const void *input){
+extern "C" void blake256_8roundHash(void *output, const void *input){
 	uchar hash[64];
 	sph_blake256_context ctx;
 
@@ -67,7 +67,7 @@ extern "C" void vcashHash(void *output, const void *input){
 }
 
 __global__
-void vcash_gpu_hash_16_8(const uint32_t threads, const uint32_t startNonce, uint32_t *resNonce,const uint64_t highTarget){
+void blake256_8round_gpu_hash(const uint32_t threads, const uint32_t startNonce, uint32_t *resNonce,const uint64_t highTarget){
 	uint32_t v[16];
 	uint32_t tmp[16];
 
@@ -206,7 +206,7 @@ void vcash_gpu_hash_16_8(const uint32_t threads, const uint32_t startNonce, uint
 }
 
 __host__
-void vcash_cpu_setBlock_16(const int thr_id,const uint32_t* endiandata, uint32_t *penddata){
+void blake256_8round_cpu_setBlock_16(const int thr_id,const uint32_t* endiandata, uint32_t *penddata){
 
 	const uint32_t _ALIGN(64) z[16] = {
 		SPH_C32(0x243F6A88), SPH_C32(0x85A308D3), SPH_C32(0x13198A2E), SPH_C32(0x03707344),
@@ -293,7 +293,7 @@ void vcash_cpu_setBlock_16(const int thr_id,const uint32_t* endiandata, uint32_t
 
 static bool init[MAX_GPUS] = { 0 };
 
-extern "C" int scanhash_vcash(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done){
+extern "C" int scanhash_blake256_8round(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done){
 	uint32_t *pdata = work->data;
 	uint32_t *ptarget = work->target;
 	const uint32_t first_nonce  = pdata[19];
@@ -321,7 +321,7 @@ extern "C" int scanhash_vcash(int thr_id, struct work* work, uint32_t max_nonce,
 		
 	cudaMemset(d_resNonce[thr_id], 0xff, sizeof(uint32_t));
 
-	vcash_cpu_setBlock_16(thr_id,endiandata,&pdata[16]);
+	blake256_8round_cpu_setBlock_16(thr_id,endiandata,&pdata[16]);
 
 	int intensity = (device_sm[dev_id] > 500 && !is_windows()) ? 30 : 24;
 	if (device_sm[dev_id] < 350) intensity = 22;
@@ -333,7 +333,7 @@ extern "C" int scanhash_vcash(int thr_id, struct work* work, uint32_t max_nonce,
 	int rc = 0;
 
 	do {
-		vcash_gpu_hash_16_8<<<grid,block>>>(throughput, pdata[19], d_resNonce[thr_id], targetHigh);
+		blake256_8round_gpu_hash<<<grid,block>>>(throughput, pdata[19], d_resNonce[thr_id], targetHigh);
 		cudaMemcpy(h_resNonce[thr_id], d_resNonce[thr_id], NBN*sizeof(uint32_t), cudaMemcpyDeviceToHost);
 		
 		if (h_resNonce[thr_id][0] != UINT32_MAX){
@@ -344,7 +344,7 @@ extern "C" int scanhash_vcash(int thr_id, struct work* work, uint32_t max_nonce,
 				be32enc(&endiandata[k], pdata[k]);
 
 			be32enc(&endiandata[19], h_resNonce[thr_id][0]);
-			vcashHash(vhashcpu, endiandata);
+			blake256_8roundHash(vhashcpu, endiandata);
 
 			if (vhashcpu[6] <= Htarg && fulltest(vhashcpu, ptarget)){
 				rc = 1;

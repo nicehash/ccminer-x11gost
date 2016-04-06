@@ -6,6 +6,7 @@
 
 enum sha_algos {
 	ALGO_VCASH,
+	ALGO_BLAKECOIN,
 	ALGO_WHIRLPOOLX,
 	ALGO_KECCAK,
 	ALGO_AUTO,
@@ -16,6 +17,7 @@ extern volatile enum sha_algos opt_algo;
 
 static const char *algo_names[] = {
 	"vcash",
+	"blakecoin",
 	"whirlpoolx",
 	"keccak",
 	"auto", /* reserved for multi algo */

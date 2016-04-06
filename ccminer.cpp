@@ -207,7 +207,8 @@ static char const usage[] = "\
 Usage: " PROGRAM_NAME " [OPTIONS]\n\
 Options:\n\
   -a, --algo=ALGO       specify the hash algorithm to use\n\
-			Vcash     Blake256 (XVC)\n\
+  			blakecoin   Blake256-8rounds (BLC)\n\
+			vcash       Blake256-8rounds (XVC)\n\
 			whirlpoolx  WhirlpoolX (VNL)\n\
   -d, --devices         Comma separated list of CUDA devices to use.\n\
                         Device IDs start counting from 0! Alternatively takes\n\
@@ -721,6 +722,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 
 		switch (opt_algo) {
 		case ALGO_VCASH:
+		case ALGO_BLAKECOIN:
 			// fast algos require that...
 			check_dups = true;
 		default:
@@ -1237,6 +1239,7 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 	/* Generate merkle root */
 	switch (opt_algo) {
 		case ALGO_KECCAK:
+		case ALGO_BLAKECOIN:
 			SHA256((uchar*)sctx->job.coinbase, sctx->job.coinbase_size, (uchar*)merkle_root);
 			break;
 		case ALGO_VCASH:
@@ -1623,13 +1626,17 @@ static void *miner_thread(void *userdata)
 		 *    before hashrate is computed */
 		if (max64 < minmax) {
 			switch (opt_algo) {
-			case ALGO_KECCAK:			
-			case ALGO_VCASH:
-				minmax = 0x80000000U;
-				break;
-			case ALGO_WHIRLPOOLX:
-				minmax = 0x40000000U;
-				break;
+
+				case ALGO_BLAKECOIN:
+				case ALGO_VCASH:
+					minmax = 0x80000000U;
+					break;
+				case ALGO_WHIRLPOOLX:
+					minmax = 0x40000000U;
+					break;
+				case ALGO_KECCAK:
+					minmax = 0x10000000U;
+					break;
 			}
 			max64 = max(minmax-1, max64);
 		}
@@ -1673,8 +1680,9 @@ static void *miner_thread(void *userdata)
 			case ALGO_KECCAK:
 				rc = scanhash_keccak256(thr_id, &work, max_nonce, &hashes_done);
 				break;
+			case ALGO_BLAKECOIN:
 			case ALGO_VCASH:
-				rc = scanhash_vcash(thr_id, &work, max_nonce, &hashes_done);
+				rc = scanhash_blake256_8round(thr_id, &work, max_nonce, &hashes_done);
 				break;
 			case ALGO_WHIRLPOOLX:
 				rc = scanhash_whirlpoolx(thr_id, &work, max_nonce, &hashes_done);
