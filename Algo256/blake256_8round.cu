@@ -12,7 +12,6 @@
  * Provos Alexis - Mar 2016
  *
  * Minor boost
- * rebranding
  * Provos Alexis - Apr 2016 
  */
 
@@ -375,7 +374,7 @@ extern "C" int scanhash_blake256_8round(int thr_id, struct work* work, uint32_t 
 }
 
 // cleanup
-extern "C" void free_blake256(int thr_id)
+extern "C" void free_blake256_8round(int thr_id)
 {
 	if (!init[thr_id])
 		return;

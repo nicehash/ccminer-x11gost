@@ -262,16 +262,23 @@ void sha256d(unsigned char *hash, const unsigned char *data, int len);
 struct work;
 
 extern int scanhash_blake256_8round(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
+extern int scanhash_blake256_14round(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_whirlpoolx(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_keccak256(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_sha256d(int thr_id, struct work *work, uint32_t max_nonce, unsigned long *hashes_done);
+extern int scanhash_lyra2(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
+extern int scanhash_lyra2v2(int thr_id,struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 
 /* free device allocated memory per algo */
 void algo_free_all(int thr_id);
 
+extern void free_blake256_8round(int thr_id);
+extern void free_blake256_14round(int thr_id);
 extern void free_blake256(int thr_id);
 extern void free_whirlx(int thr_id);
 extern void free_keccak256(int thr_id);
+extern void free_lyra2(int thr_id);
+extern void free_lyra2v2(int thr_id);
 //extern void free_sha256d(int thr_id);
 
 /* api related */
@@ -701,8 +708,11 @@ void applog_compare_hash(unsigned char *hash, unsigned char *hash2);
 
 void print_hash_tests(void);
 void blake256_8roundHash(void *output, const void *input);
+void blake256_14roundHash(void *output, const void *input);
 void whirlxHash(void *state, const void *input);
 void keccak256_hash(void *state, const void *input);
+void lyra2re_hash(void *state, const void *input);
+void lyra2v2_hash(void *state, const void *input);
 
 #ifdef __cplusplus
 }

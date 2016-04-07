@@ -43,7 +43,11 @@ void bench_free()
 // required to switch algos
 void algo_free_all(int thr_id){
 	// only initialized algos will be freed
-	free_blake256(thr_id);
+	free_blake256_8round(thr_id);
+	free_blake256_14round(thr_id);
+	free_keccak256(thr_id);
+	free_lyra2v2(thr_id);
+	free_lyra2(thr_id);
 	free_whirlx(thr_id);
 }
 

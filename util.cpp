@@ -1897,6 +1897,12 @@ void print_hash_tests(void)
 	keccak256_hash(&hash[0], &buf[0]);
 	printpfx("keccak", hash);
 	
+	lyra2re_hash(&hash[0], &buf[0]);
+	printpfx("lyra2", hash);
+
+	lyra2v2_hash(&hash[0], &buf[0]);
+	printpfx("lyra2v2", hash);
+
 	printf("\n");
 
 	do_gpu_tests();

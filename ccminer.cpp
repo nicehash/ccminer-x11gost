@@ -207,9 +207,13 @@ static char const usage[] = "\
 Usage: " PROGRAM_NAME " [OPTIONS]\n\
 Options:\n\
   -a, --algo=ALGO       specify the hash algorithm to use\n\
+		  	blake       Blake256-14rounds(SFR)\n\
   			blakecoin   Blake256-8rounds (BLC)\n\
 			vcash       Blake256-8rounds (XVC)\n\
-			whirlpoolx  WhirlpoolX (VNL)\n\
+			whirlpoolx  WhirlpoolX       (VNL)\n\
+			keccak	    keccak256        (Maxcoin)\n\
+			lyra2       LyraBar\n\
+			lyra2v2     VertCoin\n\
   -d, --devices         Comma separated list of CUDA devices to use.\n\
                         Device IDs start counting from 0! Alternatively takes\n\
                         string names of your cards like gtx780ti or gt640#2\n\
@@ -722,6 +726,7 @@ static bool submit_upstream_work(CURL *curl, struct work *work)
 
 		switch (opt_algo) {
 		case ALGO_VCASH:
+		case ALGO_BLAKE:
 		case ALGO_BLAKECOIN:
 			// fast algos require that...
 			check_dups = true;
@@ -1288,9 +1293,13 @@ static bool stratum_gen_work(struct stratum_ctx *sctx, struct work *work)
 		opt_difficulty = 1.;
 
 	switch (opt_algo) {
+		case ALGO_LYRA2v2:
 		case ALGO_KECCAK:
 			work_set_target(work, sctx->job.diff / (256.0 * opt_difficulty));
 			break;
+		case ALGO_LYRA2:
+			work_set_target(work, sctx->job.diff / (128.0 * opt_difficulty));
+			break;		
 		default:
 			work_set_target(work, sctx->job.diff / opt_difficulty);
 	}
@@ -1632,10 +1641,17 @@ static void *miner_thread(void *userdata)
 					minmax = 0x80000000U;
 					break;
 				case ALGO_WHIRLPOOLX:
+				case ALGO_BLAKE:
 					minmax = 0x40000000U;
 					break;
 				case ALGO_KECCAK:
 					minmax = 0x10000000U;
+					break;
+				case ALGO_LYRA2v2:
+					minmax = 0x400000;
+					break;
+				case ALGO_LYRA2:
+					minmax = 0x80000;
 					break;
 			}
 			max64 = max(minmax-1, max64);
@@ -1680,12 +1696,21 @@ static void *miner_thread(void *userdata)
 			case ALGO_KECCAK:
 				rc = scanhash_keccak256(thr_id, &work, max_nonce, &hashes_done);
 				break;
+			case ALGO_BLAKE:
+				rc = scanhash_blake256_14round(thr_id, &work, max_nonce, &hashes_done);
+				break;
 			case ALGO_BLAKECOIN:
 			case ALGO_VCASH:
 				rc = scanhash_blake256_8round(thr_id, &work, max_nonce, &hashes_done);
 				break;
 			case ALGO_WHIRLPOOLX:
 				rc = scanhash_whirlpoolx(thr_id, &work, max_nonce, &hashes_done);
+				break;
+			case ALGO_LYRA2:
+				rc = scanhash_lyra2(thr_id, &work, max_nonce, &hashes_done);
+				break;
+			case ALGO_LYRA2v2:
+				rc = scanhash_lyra2v2(thr_id, &work, max_nonce, &hashes_done);
 				break;
 			default:
 				/* should never happen */
