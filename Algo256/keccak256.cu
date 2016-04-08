@@ -14,14 +14,12 @@ extern "C"
 
 #include "cuda_helper.h"
 
-static uint32_t *d_hash[MAX_GPUS];
-uint32_t *d_nounce[MAX_GPUS];
-uint32_t *d_KNonce[MAX_GPUS];
+extern uint32_t *d_nounce[MAX_GPUS];
 
-extern void keccak256_cpu_init(int thr_id, uint32_t threads);
+extern void keccak256_cpu_init(int thr_id);
 extern void keccak256_cpu_free(int thr_id);
-extern void keccak256_setBlock_80(void *pdata);
-extern uint32_t keccak256_cpu_hash_80(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash,const uint64_t highTarget);
+extern void keccak256_setBlock_80(uint64_t *PaddedMessage80);
+extern uint32_t keccak256_cpu_hash_80(int thr_id, uint32_t threads, uint32_t startNounce,const uint64_t highTarget);
 
 // CPU Hash
 extern "C" void keccak256_hash(void *state, const void *input)
@@ -38,8 +36,8 @@ extern "C" void keccak256_hash(void *state, const void *input)
 
 static bool init[MAX_GPUS] = { 0 };
 
-extern "C" int scanhash_keccak256(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done)
-{
+extern "C" int scanhash_keccak256(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done){
+
 	uint32_t _ALIGN(64) endiandata[20];
 	uint32_t *pdata = work->data;
 	uint32_t *ptarget = work->target;
@@ -64,8 +62,7 @@ extern "C" int scanhash_keccak256(int thr_id, struct work* work, uint32_t max_no
 			cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
 			CUDA_LOG_ERROR();
 		}
-		CUDA_SAFE_CALL(cudaMalloc(&d_hash[thr_id], throughput * 64));
-		keccak256_cpu_init(thr_id, throughput);
+		keccak256_cpu_init(thr_id);
 
 		init[thr_id] = true;
 	}
@@ -74,10 +71,10 @@ extern "C" int scanhash_keccak256(int thr_id, struct work* work, uint32_t max_no
 		be32enc(&endiandata[k], pdata[k]);
 	}
 
-	keccak256_setBlock_80((void*)endiandata);
-	cudaMemset(d_KNonce[thr_id], 0xff, sizeof(uint32_t));
+	keccak256_setBlock_80((uint64_t*)endiandata);
+	cudaMemset(d_nounce[thr_id], 0xff, sizeof(uint32_t));
 	do {
-		uint32_t foundNonce = keccak256_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id],highTarget);
+		uint32_t foundNonce = keccak256_cpu_hash_80(thr_id, throughput, pdata[19],highTarget);
 		if (foundNonce != UINT32_MAX && bench_algo < 0)
 		{
 			uint32_t _ALIGN(64) vhash64[8];
@@ -92,7 +89,7 @@ extern "C" int scanhash_keccak256(int thr_id, struct work* work, uint32_t max_no
 			}
 			else {
 				gpulog(LOG_WARNING, thr_id, "result for %08x does not validate on CPU!", foundNonce);
-				cudaMemset(d_KNonce[thr_id], 0xff, sizeof(uint32_t));				
+				cudaMemset(d_nounce[thr_id], 0xff, sizeof(uint32_t));				
 			}
 		}
 
@@ -115,8 +112,6 @@ extern "C" void free_keccak256(int thr_id)
 		return;
 
 	cudaThreadSynchronize();
-
-	cudaFree(d_hash[thr_id]);
 
 	keccak256_cpu_free(thr_id);
 

@@ -33,27 +33,15 @@ static const uint64_t host_keccak_round_constants[24] = {
 	0x0000000080000001ull, 0x8000000080008008ull
 };
 
-extern uint32_t *d_nounce[MAX_GPUS];
-extern uint32_t *d_KNonce[MAX_GPUS];
+uint32_t *d_nounce[MAX_GPUS];
+static uint32_t *h_nounce[MAX_GPUS];
 
-__constant__ uint2 _ALIGN(16) c_PaddedMessage80[ 6]; // padded message (80 bytes + padding?)
+__constant__ uint2 c_PaddedMessage80[ 6]; // padded message (80 bytes + padding?)
 
-__constant__ uint2 _ALIGN(16) c_midstate[17];
+__constant__ uint2 c_mid[17];
 
-__constant__ uint2 keccak_round_constants[24] = {
-		{ 0x00000001, 0x00000000 }, { 0x00008082, 0x00000000 },
-		{ 0x0000808a, 0x80000000 }, { 0x80008000, 0x80000000 },
-		{ 0x0000808b, 0x00000000 }, { 0x80000001, 0x00000000 },
-		{ 0x80008081, 0x80000000 }, { 0x00008009, 0x80000000 },
-		{ 0x0000008a, 0x00000000 }, { 0x00000088, 0x00000000 },
-		{ 0x80008009, 0x00000000 }, { 0x8000000a, 0x00000000 },
-		{ 0x8000808b, 0x00000000 }, { 0x0000008b, 0x80000000 },
-		{ 0x00008089, 0x80000000 }, { 0x00008003, 0x80000000 },
-		{ 0x00008002, 0x80000000 }, { 0x00000080, 0x80000000 },
-		{ 0x0000800a, 0x00000000 }, { 0x8000000a, 0x80000000 },
-		{ 0x80008081, 0x80000000 }, { 0x00008080, 0x80000000 },
-		{ 0x80000001, 0x00000000 }, { 0x80008008, 0x80000000 }
-};
+__constant__ uint2 keccak_round_constants[24];
+
 
 __global__
 void keccak256_gpu_hash_80(uint32_t threads, uint32_t startNounce,uint32_t *resNounce,const uint64_t highTarget){
@@ -68,34 +56,34 @@ void keccak256_gpu_hash_80(uint32_t threads, uint32_t startNounce,uint32_t *resN
 
 		t[ 4] = c_PaddedMessage80[ 1]^s[ 9];
 		/* theta: d[i] = c[i+4] ^ rotl(c[i+1],1) */
-		u[ 0]=t[ 4]^c_midstate[ 0];
-		u[ 1]=c_midstate[ 1]^ROL2(t[ 4],1);
-		u[ 2]=c_midstate[ 2];
+		u[ 0]=t[ 4]^c_mid[ 0];
+		u[ 1]=c_mid[ 1]^ROL2(t[ 4],1);
+		u[ 2]=c_mid[ 2];
 		/* thetarho pi: b[..] = rotl(a[..] ^ d[...], ..) //There's no need to perform theta and -store- the result since it's unique for each a[..]*/
 		s[ 7] = ROL2(s[10]^u[ 0], 3);
-		s[10] = c_midstate[ 3];
-		    w = c_midstate[ 4];
-		s[20] = c_midstate[ 5];
+		s[10] = c_mid[ 3];
+		    w = c_mid[ 4];
+		s[20] = c_mid[ 5];
 		s[ 6] = ROL2(s[ 9]^u[ 2],20);
-		s[ 9] = c_midstate[ 6];
-		s[22] = c_midstate[ 7];
+		s[ 9] = c_mid[ 6];
+		s[22] = c_mid[ 7];
 		s[14] = ROL2(u[ 0],18);
-		s[ 2] = c_midstate[ 8];
+		s[ 2] = c_mid[ 8];
 		s[12] = ROL2(u[ 1],25);
-		s[13] = c_midstate[ 9];
+		s[13] = c_mid[ 9];
 		s[19] = ROL2(u[ 1],56);
 		s[23] = ROL2(u[ 0],41);
-		s[15] = c_midstate[10];
-		s[ 4] = c_midstate[11];
-		s[24] = c_midstate[12];
+		s[15] = c_mid[10];
+		s[ 4] = c_mid[11];
+		s[24] = c_mid[12];
 		s[21] = ROL2(c_PaddedMessage80[ 2]^u[ 1],55);
-		s[ 8] = c_midstate[13];
+		s[ 8] = c_mid[13];
 		s[16] = ROL2(c_PaddedMessage80[ 3]^u[ 0],36);
 		s[ 5] = ROL2(c_PaddedMessage80[ 4]^u[ 1],28);
 		s[ 3] = ROL2(u[ 1],21);
-		s[18] = c_midstate[14];
-		s[17] = c_midstate[15];
-		s[11] = c_midstate[16];
+		s[18] = c_mid[14];
+		s[17] = c_mid[15];
+		s[11] = c_mid[16];
 
 		/* chi: a[i,j] ^= ~b[i,j+1] & b[i,j+2] */
 		v = c_PaddedMessage80[ 5]^u[ 0];
@@ -162,18 +150,16 @@ void keccak256_gpu_hash_80(uint32_t threads, uint32_t startNounce,uint32_t *resN
 }
 
 __host__
-uint32_t keccak256_cpu_hash_80(int thr_id, uint32_t threads, uint32_t startNounce, uint32_t *d_hash,const uint64_t highTarget){
-	uint32_t result = UINT32_MAX;
+uint32_t keccak256_cpu_hash_80(int thr_id, uint32_t threads, uint32_t startNounce,const uint64_t highTarget){
+
 	const uint32_t threadsperblock = 320;
 
 	dim3 grid((threads + threadsperblock-1)/threadsperblock);
 	dim3 block(threadsperblock);
 
-	keccak256_gpu_hash_80<<<grid, block>>>(threads, startNounce, d_KNonce[thr_id],highTarget);
-	cudaMemcpy(d_nounce[thr_id], d_KNonce[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost);
-	result = *d_nounce[thr_id];
-
-	return result;
+	keccak256_gpu_hash_80<<<grid, block>>>(threads, startNounce, d_nounce[thr_id],highTarget);
+	cudaMemcpy(h_nounce[thr_id], d_nounce[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost);
+	return h_nounce[thr_id][0];
 }
 
 __global__
@@ -247,15 +233,12 @@ void keccak256_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce, u
 }
 
 __host__
-void keccak256_setBlock_80(void *pdata)
-{
-	uint64_t PaddedMessage80[10];
-	memcpy(PaddedMessage80, pdata, 80);
+void keccak256_setBlock_80(uint64_t *PaddedMessage80){
 
-	uint64_t s[25],t[5],u[5],midstate[32];
+	uint64_t s[25],t[5],u[5],midstate[17];
 	
-	s[10] = 0x0000000000000001ull;//(uint64_t)make_uint2(1, 0);
-	s[16] = 0x8000000000000000ull;//(uint64_t)make_uint2(0, 0x80000000);
+	s[10] = 1;//(uint64_t)make_uint2(1, 0);
+	s[16] = (uint64_t)1<<63;//(uint64_t)make_uint2(0, 0x80000000);
 
 	t[ 0] = PaddedMessage80[ 0]^PaddedMessage80[ 5]^s[10];
 	t[ 1] = PaddedMessage80[ 1]^PaddedMessage80[ 6]^s[16];
@@ -282,7 +265,7 @@ void keccak256_setBlock_80(void *pdata)
 	midstate[15] = ROTL64(u[ 1],10);
 	midstate[16] = ROTL64(PaddedMessage80[ 7]^u[ 2], 6);
 	
-	CUDA_SAFE_CALL(cudaMemcpyToSymbol(c_midstate, midstate,17*sizeof(uint64_t), 0, cudaMemcpyHostToDevice));
+	CUDA_SAFE_CALL(cudaMemcpyToSymbol(c_mid, midstate,17*sizeof(uint64_t), 0, cudaMemcpyHostToDevice));
 	
 	//rearrange PaddedMessage80, pass only what's needed
 	uint64_t PaddedMessage[ 6];
@@ -296,16 +279,16 @@ void keccak256_setBlock_80(void *pdata)
 }
 
 __host__
-void keccak256_cpu_init(int thr_id, uint32_t threads)
+void keccak256_cpu_init(int thr_id)
 {
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(keccak_round_constants, host_keccak_round_constants,sizeof(host_keccak_round_constants), 0, cudaMemcpyHostToDevice));
-	CUDA_SAFE_CALL(cudaMalloc(&d_KNonce[thr_id], sizeof(uint32_t)));
-	CUDA_SAFE_CALL(cudaMallocHost(&d_nounce[thr_id], 1*sizeof(uint32_t)));
+	CUDA_SAFE_CALL(cudaMalloc(&d_nounce[thr_id], sizeof(uint32_t)));
+	CUDA_SAFE_CALL(cudaMallocHost(&h_nounce[thr_id], sizeof(uint32_t)));
 }
 
 __host__
 void keccak256_cpu_free(int thr_id)
 {
-	cudaFree(d_KNonce[thr_id]);
-	cudaFreeHost(d_nounce[thr_id]);
+	cudaFree(d_nounce[thr_id]);
+	cudaFreeHost(h_nounce[thr_id]);
 }
