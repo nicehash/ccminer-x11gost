@@ -48,7 +48,7 @@ ccminer_LDADD    = @LIBCURL@ @JANSSON_LIBS@ @PTHREAD_LIBS@ @WS2_LIBS@ @CUDA_LIBS
 ccminer_CPPFLAGS = @LIBCURL_CPPFLAGS@ @PCIFLAGS@ @OPENMP_CFLAGS@ $(CPPFLAGS) $(PTHREAD_FLAGS) -fno-strict-aliasing $(JANSSON_INCLUDES) $(DEF_INCLUDES) $(nvml_defs)
 
 nvcc_ARCH = -gencode=arch=compute_52,code=\"sm_52,compute_52\"
-#nvcc_ARCH += -gencode=arch=compute_50,code=\"sm_50,compute_50\"
+#nvcc_ARCH  = -gencode=arch=compute_50,code=\"sm_50,compute_50\"
 #nvcc_ARCH += -gencode=arch=compute_35,code=\"sm_35,compute_35\"
 #nvcc_ARCH += -gencode=arch=compute_30,code=\"sm_30,compute_30\"
 #nvcc_ARCH += -gencode=arch=compute_20,code=\"sm_21,compute_20\"
@@ -61,10 +61,10 @@ nvcc_FLAGS += $(JANSSON_INCLUDES) --ptxas-options="-v"
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 -o $@ -c $<
 
 Algo256/blake256_8round.o: Algo256/blake256_8round.cu
-	$(NVCC) $(nvcc_FLAGS) --maxrregcount=48 --ptxas-options="-dlcm=cg" -o $@ -c $<
+	$(NVCC) $(nvcc_FLAGS) --maxrregcount=56 --ptxas-options="-dlcm=cg -abi=no" -o $@ -c $<
 
 Algo256/blake256_14round.o: Algo256/blake256_14round.cu
-	$(NVCC) $(nvcc_FLAGS) --maxrregcount=32 --ptxas-options="-dlcm=cg" -o $@ -c $<
+	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 --ptxas-options="-dlcm=cg" -o $@ -c $<
 
 Algo256/cuda_keccak256.o: Algo256/cuda_keccak256.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=72 --ptxas-options="-dlcm=cg" -o $@ -c $<

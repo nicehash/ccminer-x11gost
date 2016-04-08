@@ -56,11 +56,11 @@ extern "C" void blake256_8roundHash(void *output, const void *input){
 }
 #define GS4(a,b,c,d,x,y,a1,b1,c1,d1,x1,y1,a2,b2,c2,d2,x2,y2,a3,b3,c3,d3,x3,y3) { \
 	v[ a]+= (m[ x] ^ z[ y]) + v[ b];		v[a1]+= (m[x1] ^ z[y1]) + v[b1];		v[a2]+= (m[x2] ^ z[y2]) + v[b2]; 		v[a3]+= (m[x3] ^ z[y3]) + v[b3]; \
-	v[ d] = __byte_perm(v[ a] ^ v[ d], 0, 0x1032);	v[d1] = __byte_perm(v[a1] ^ v[d1], 0, 0x1032);	v[d2] = __byte_perm(v[a2] ^ v[d2], 0, 0x1032);	v[d3] = __byte_perm(v[a3] ^ v[d3], 0, 0x1032); \
+	v[ d] = __byte_perm(v[ d] ^ v[ a], 0, 0x1032);	v[d1] = __byte_perm(v[d1] ^ v[a1], 0, 0x1032);	v[d2] = __byte_perm(v[d2] ^ v[a2], 0, 0x1032);	v[d3] = __byte_perm(v[d3] ^ v[a3], 0, 0x1032); \
 	v[ c]+= v[ d];					v[c1]+= v[d1];					v[c2]+= v[d2];					v[c3]+= v[d3]; \
 	v[ b] = ROTR32(v[ b] ^ v[ c], 12);		v[b1] = ROTR32(v[b1] ^ v[c1], 12);		v[b2] = ROTR32(v[b2] ^ v[c2], 12);		v[b3] = ROTR32(v[b3] ^ v[c3], 12); \
 	v[ a]+= (m[ y] ^ z[ x]) + v[ b];		v[a1]+= (m[y1] ^ z[x1]) + v[b1];		v[a2]+= (m[y2] ^ z[x2]) + v[b2];		v[a3]+= (m[y3] ^ z[x3]) + v[b3]; \
-	v[ d] = __byte_perm(v[ a] ^ v[ d], 0, 0x0321);	v[d1] = __byte_perm(v[a1] ^ v[d1], 0, 0x0321);	v[d2] = __byte_perm(v[a2] ^ v[d2], 0, 0x0321);	v[d3] = __byte_perm(v[a3] ^ v[d3], 0, 0x0321); \
+	v[ d] = __byte_perm(v[ d] ^ v[ a], 0, 0x0321);	v[d1] = __byte_perm(v[d1] ^ v[a1], 0, 0x0321);	v[d2] = __byte_perm(v[d2] ^ v[a2], 0, 0x0321);	v[d3] = __byte_perm(v[d3] ^ v[a3], 0, 0x0321); \
 	v[ c]+= v[ d];					v[c1]+= v[d1];					v[c2]+= v[d2];					v[c3]+= v[d3]; \
 	v[ b] = ROTR32(v[ b] ^ v[ c], 7);		v[b1] = ROTR32(v[b1] ^ v[c1], 7);		v[b2] = ROTR32(v[b2] ^ v[c2], 7);		v[b3] = ROTR32(v[b3] ^ v[c3], 7); \
 }
@@ -68,7 +68,7 @@ extern "C" void blake256_8roundHash(void *output, const void *input){
 __global__
 void blake256_8round_gpu_hash(const uint32_t threads, const uint32_t startNonce, uint32_t *resNonce,const uint64_t highTarget){
 	uint32_t v[16];
-	uint32_t tmp[16];
+	uint4 tmp[16];
 
 	const uint64_t thread   = blockDim.x * blockIdx.x + threadIdx.x;
 	const uint64_t step     = gridDim.x * blockDim.x;
@@ -80,9 +80,9 @@ void blake256_8round_gpu_hash(const uint32_t threads, const uint32_t startNonce,
 	};
 
 //PREFETCH
-	#pragma unroll
-	for(int i=0;i<16;i++){
-		tmp[ i] = d_data[ i];
+	#pragma unroll 4
+	for(int i=0;i<4;i++){
+		tmp[i] = *(uint4*)&d_data[i<<2];
 	}
 
 	uint32_t m[16] = {
@@ -99,10 +99,10 @@ void blake256_8round_gpu_hash(const uint32_t threads, const uint32_t startNonce,
 
 		m[3]  = m3;
 		
-		#pragma unroll
-		for(int i=0;i<16;i++)
-			v[ i] = tmp[ i];
-
+		#pragma unroll 4
+		for(int i=0;i<4;i++){
+			*(uint4*)&v[i<<2] = tmp[ i];
+		}
 		v[ 1]+= m[3] ^ z[2];
 		v[13] = __byte_perm(v[13] ^ v[ 1],0, 0x0321);
 		v[ 9]+= v[13];
