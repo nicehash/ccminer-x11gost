@@ -61,7 +61,7 @@ nvcc_FLAGS += $(JANSSON_INCLUDES) --ptxas-options="-v"
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 -o $@ -c $<
 
 Algo256/blake256_8round.o: Algo256/blake256_8round.cu
-	$(NVCC) $(nvcc_FLAGS) --maxrregcount=56 --ptxas-options="-dlcm=cg -abi=no" -o $@ -c $<
+	$(NVCC) $(nvcc_FLAGS) --maxrregcount=56 --ptxas-options="-dlcm=cg" -o $@ -c $<
 
 Algo256/blake256_14round.o: Algo256/blake256_14round.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 --ptxas-options="-dlcm=cg" -o $@ -c $<

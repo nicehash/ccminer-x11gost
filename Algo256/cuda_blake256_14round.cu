@@ -46,7 +46,7 @@ static const uint32_t  c_IV256[8] = {
 
 __device__ __constant__ static uint32_t cpu_h[8];
 
-__device__ __constant__ static  uint32_t  u256[16];
+__device__ __constant__ static  uint32_t u256[16];
 static const uint32_t  c_u256[16] = {
 	0x243F6A88, 0x85A308D3,
 	0x13198A2E, 0x03707344,
@@ -62,14 +62,14 @@ static const uint32_t  c_u256[16] = {
 	const uint32_t idx1 = sigma[r][x]; \
 	const uint32_t idx2 = sigma[r][x+1]; \
 	v[a] += (m[idx1] ^ u256[idx2]) + v[b]; \
-	v[d] = SPH_ROTL32(v[d] ^ v[a], 16); \
+	v[d] = __byte_perm(v[d] ^ v[a],0, 0x1032); \
 	v[c] += v[d]; \
-	v[b] = SPH_ROTR32(v[b] ^ v[c], 12); \
+	v[b] = ROTR32(v[b] ^ v[c], 12); \
 \
 	v[a] += (m[idx2] ^ u256[idx1]) + v[b]; \
-	v[d] = SPH_ROTR32(v[d] ^ v[a], 8); \
+	v[d] = __byte_perm(v[d] ^ v[a],0, 0x0321); \
 	v[c] += v[d]; \
-	v[b] = SPH_ROTR32(v[b] ^ v[c], 7); \
+	v[b] = ROTR32(v[b] ^ v[c], 7); \
 }
 
 //#define ROTL32(x, n) ((x) << (n)) | ((x) >> (32 - (n)))

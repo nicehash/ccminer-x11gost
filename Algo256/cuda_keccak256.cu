@@ -44,7 +44,7 @@ __constant__ uint2 keccak_round_constants[24];
 
 
 __global__
-void keccak256_gpu_hash_80(uint32_t threads, uint32_t startNounce,uint32_t *resNounce,const uint64_t highTarget){
+void keccak256_gpu_hash_80(uint32_t threads, uint32_t startNounce,uint32_t *resNounce,const uint32_t highTarget){
 	uint32_t thread = (blockDim.x * blockIdx.x + threadIdx.x);
 	uint2 s[25],t[5], u[5], v, w;
 	if (thread < threads){

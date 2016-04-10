@@ -33,9 +33,10 @@ extern "C" {
 /* threads per block and nonces per thread */
 #define TPB 768
 #define NPT 384
+#define maxResults 8
 #define NBN 1
 
-__constant__ uint32_t _ALIGN(16) d_data[21];
+__constant__ uint32_t _ALIGN(16) d_data[20];
 
 /* 8 adapters max */
 static uint32_t		*d_resNonce[MAX_GPUS];
@@ -65,6 +66,28 @@ extern "C" void blake256_8roundHash(void *output, const void *input){
 	v[ b] = ROTR32(v[ b] ^ v[ c], 7);		v[b1] = ROTR32(v[b1] ^ v[c1], 7);		v[b2] = ROTR32(v[b2] ^ v[c2], 7);		v[b3] = ROTR32(v[b3] ^ v[c3], 7); \
 }
 
+#define GS2(a,b,c,d,x,y,a1,b1,c1,d1,x1,y1) { \
+	v[ a]+= (m[ x] ^ z[ y]) + v[ b];		v[a1]+= (m[x1] ^ z[y1]) + v[b1];\
+	v[ d] = __byte_perm(v[ d] ^ v[ a], 0, 0x1032);	v[d1] = __byte_perm(v[d1] ^ v[a1], 0, 0x1032);\
+	v[ c]+= v[ d];					v[c1]+= v[d1];\
+	v[ b] = ROTR32(v[ b] ^ v[ c], 12);		v[b1] = ROTR32(v[b1] ^ v[c1], 12);\
+	v[ a]+= (m[ y] ^ z[ x]) + v[ b];		v[a1]+= (m[y1] ^ z[x1]) + v[b1];\
+	v[ d] = __byte_perm(v[ d] ^ v[ a], 0, 0x0321);	v[d1] = __byte_perm(v[d1] ^ v[a1], 0, 0x0321);\
+	v[ c]+= v[ d];					v[c1]+= v[d1];\
+	v[ b] = ROTR32(v[ b] ^ v[ c], 7);		v[b1] = ROTR32(v[b1] ^ v[c1], 7);\
+}
+
+#define GS(a,b,c,d,x,y) { \
+	v[a] += (m[x] ^ z[y]) + v[b]; \
+	v[d] = __byte_perm(v[d] ^ v[a],0, 0x1032); \
+	v[c] += v[d]; \
+	v[b] = ROTR32(v[b] ^ v[c],12); \
+	v[a] += (m[y] ^ z[x]) + v[b]; \
+	v[d] = __byte_perm(v[d] ^ v[a],0, 0x0321); \
+	v[c] += v[d]; \
+	v[b] = ROTR32(v[b] ^ v[c], 7); \
+}
+	
 __global__
 void blake256_8round_gpu_hash(const uint32_t threads, const uint32_t startNonce, uint32_t *resNonce,const uint64_t highTarget){
 	uint32_t v[16];
@@ -93,7 +116,6 @@ void blake256_8round_gpu_hash(const uint32_t threads, const uint32_t startNonce,
 	};		
 
 	const uint32_t h7 = d_data[19];
-	const uint32_t h6 = d_data[20];
 //END OF PREFETCH
 	for(uint64_t m3 = startNonce + thread; m3<maxNonce;m3+=step){
 
@@ -148,10 +170,10 @@ void blake256_8round_gpu_hash(const uint32_t threads, const uint32_t startNonce,
 		GS4(0, 4, 8,12,	 9, 0,		1, 5, 9,13,	 5, 7,		2, 6,10,14,	 2, 4,		3, 7,11,15,	10,15);
 		GS4(0, 5,10,15,	14, 1,		1, 6,11,12,	11,12,		2, 7, 8,13,	 6, 8,		3, 4, 9,14,	 3,13);
 		GS4(0, 4, 8,12,	 2,12,		1, 5, 9,13,	 6,10,		2, 6,10,14,	 0,11,		3, 7,11,15,	 8, 3);
-		GS4(0, 5,10,15,	 4,13,		1, 6,11,12,	 7, 5,		2, 7, 8,13,	15,14,		3, 4, 9,14,	 1, 9);
-		GS4(0, 4, 8,12,	12, 5,		1, 5, 9,13,	 1,15,		2, 6,10,14,	14,13,		3, 7,11,15,	 4,10);
-		GS4(0, 5,10,15,	 0, 7,		1, 6,11,12,	 6, 3,		2, 7, 8,13,	 9, 2,		3, 4, 9,14,	 8,11);
-		GS4(0, 4, 8,12,	13,11,		1, 5, 9,13,	 7,14,		2, 6,10,14,	12, 1,		3, 7,11,15,	 3, 9);
+		GS2(0, 5,10,15,	 4,13,		1, 6,11,12,	 7, 5);GS2(	2, 7, 8,13,	15,14,		3, 4, 9,14,	 1, 9);//dont ask, it's slightly better (Pallas did something similar on DCR)
+		GS2(0, 4, 8,12,	12, 5,		1, 5, 9,13,	 1,15);GS2(	2, 6,10,14,	14,13,		3, 7,11,15,	 4,10);//TODO: A first thought is that
+		GS2(0, 5,10,15,	 0, 7,		1, 6,11,12,	 6, 3);GS2(	2, 7, 8,13,	 9, 2,		3, 4, 9,14,	 8,11);//It's probably decreasing the cache hit ratio of warps
+		GS2(0, 4, 8,12,	13,11,		1, 5, 9,13,	 7,14);GS2(	2, 6,10,14,	12, 1,		3, 7,11,15,	 3, 9);//Needs profiling and to try some more combinations
 		
 		v[ 0] += (m[ 5] ^ z[0]) + v[ 5];
 		v[ 2] += (m[ 8] ^ z[6]) + v[ 7];
@@ -169,37 +191,10 @@ void blake256_8round_gpu_hash(const uint32_t threads, const uint32_t startNonce,
 		v[ 8] += v[13];
 		// only compute h6 & 7
 		if(xor3x(v[ 8],h7,v[ 7])==v[15]){
-			v[ 1] += (m[15] ^ z[ 4]) + v[ 6];
-			v[ 3] += (z[10] ^ m[ 2]) + v[ 4];
-			v[12]  = __byte_perm(v[12] ^ v[ 1],0, 0x1032);
-			v[14]  = __byte_perm(v[14] ^ v[ 3],0, 0x1032);
-			v[11] += v[12];
-			v[ 9] += v[14];
-			v[ 6]  = ROTR32(v[ 6] ^ v[11], 12);
-			
-			v[ 1] += (m[ 4] ^ z[15]) + v[ 6];
-		
-			v[ 3] += (m[10] ^ z[ 2]) + ROTR32(v[ 4] ^ v[ 9],12);
-			v[11] += __byte_perm(v[12] ^ v[ 1],0, 0x0321);
-		
-			v[ 6] = ROTR32(v[ 6] ^ v[11], 7);
-			v[14]  = __byte_perm(v[14] ^ v[ 3],0, 0x1230);
-			v[ 6] = __byte_perm(v[ 6], 0,0x0123);
-		
-			if(xor3x(h6,v[14],v[ 6]) <= highTarget){
-#if NBN == 2
-				/* keep the smallest nonce, + extra one if found */
-				if (m[3] < resNonce[0]){
-					resNonce[1] = resNonce[0];
-					resNonce[0] = m[3];
-				}
-				else
-					resNonce[1] = m[3];
-#else
-				resNonce[0] = m[3];
-#endif
-				return; //<-- this may cause a problem on extranonce if the extranonce is on position current_nonce + X * step where X=[1,2,3..,N]
-			}
+			uint32_t pos = atomicInc(&resNonce[0],0xffffffff)+1; //global memory access will probably make the kernel unstable in high gpu clocks.
+			if(pos<maxResults)
+				resNonce[pos]=m[ 3];
+			return;
 		}
 	}
 }
@@ -286,8 +281,7 @@ void blake256_8round_cpu_setBlock_16(const int thr_id,const uint32_t* endiandata
 	h[14] = SPH_ROTR32(h[14] ^ h[ 3], 16);
 	
 	h[19] = ROTL32(h[19],7); //align the rotation with v[7] v[15];
-	h[20] = sph_bswap32(h[20]);
-	cudaMemcpyToSymbol(d_data, h, 21*sizeof(uint32_t), 0, cudaMemcpyHostToDevice);
+	cudaMemcpyToSymbol(d_data, h, 20*sizeof(uint32_t), 0, cudaMemcpyHostToDevice);
 }
 
 static bool init[MAX_GPUS] = { 0 };
@@ -308,8 +302,8 @@ extern "C" int scanhash_blake256_8round(int thr_id, struct work* work, uint32_t 
 			cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
 			CUDA_LOG_ERROR();
 		}
-		CUDA_CALL_OR_RET_X(cudaMalloc(&d_resNonce[thr_id], NBN * sizeof(uint32_t)), -1);
-		CUDA_CALL_OR_RET_X(cudaMallocHost(&h_resNonce[thr_id], NBN * sizeof(uint32_t)), -1);
+		CUDA_CALL_OR_RET_X(cudaMalloc(&d_resNonce[thr_id], maxResults * sizeof(uint32_t)), -1);
+		CUDA_CALL_OR_RET_X(cudaMallocHost(&h_resNonce[thr_id], maxResults * sizeof(uint32_t)), -1);
 		init[thr_id] = true;
 	}
 
@@ -318,8 +312,6 @@ extern "C" int scanhash_blake256_8round(int thr_id, struct work* work, uint32_t 
 	for (int k = 0; k < 16; k++)
 		be32enc(&endiandata[k], pdata[k]);
 		
-	cudaMemset(d_resNonce[thr_id], 0xff, sizeof(uint32_t));
-
 	blake256_8round_cpu_setBlock_16(thr_id,endiandata,&pdata[16]);
 
 	int intensity = (device_sm[dev_id] > 500 && !is_windows()) ? 30 : 24;
@@ -330,41 +322,36 @@ extern "C" int scanhash_blake256_8round(int thr_id, struct work* work, uint32_t 
 	const dim3 grid((throughput + (NPT*TPB)-1)/(NPT*TPB));
 	const dim3 block(TPB);
 	int rc = 0;
-
+	h_resNonce[thr_id][ 0] = 1;
+	
 	do {
+		if(h_resNonce[thr_id][0]!=0)
+		cudaMemset(d_resNonce[thr_id], 0x00000000, sizeof(uint32_t));	
 		blake256_8round_gpu_hash<<<grid,block>>>(throughput, pdata[19], d_resNonce[thr_id], targetHigh);
-		cudaMemcpy(h_resNonce[thr_id], d_resNonce[thr_id], NBN*sizeof(uint32_t), cudaMemcpyDeviceToHost);
-		
-		if (h_resNonce[thr_id][0] != UINT32_MAX){
-			uint32_t vhashcpu[8];
-			uint32_t Htarg = (uint32_t)targetHigh;
+		cudaMemcpy(h_resNonce[thr_id], d_resNonce[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost);
+		if (h_resNonce[thr_id][0] != 0){
+			cudaMemcpy(h_resNonce[thr_id], d_resNonce[thr_id], maxResults*sizeof(uint32_t), cudaMemcpyDeviceToHost);		
+			uint32_t i;
+			for(i=1;i<h_resNonce[thr_id][0]+1;i++){
+				uint32_t vhashcpu[8];
+				uint32_t Htarg = (uint32_t)targetHigh;
 
-			for (int k=0; k < 19; k++)
-				be32enc(&endiandata[k], pdata[k]);
+				for (int k=0; k < 19; k++)
+					be32enc(&endiandata[k], pdata[k]);
 
-			be32enc(&endiandata[19], h_resNonce[thr_id][0]);
-			blake256_8roundHash(vhashcpu, endiandata);
+				be32enc(&endiandata[19], h_resNonce[thr_id][i]);
+				blake256_8roundHash(vhashcpu, endiandata);
 
-			if (vhashcpu[6] <= Htarg && fulltest(vhashcpu, ptarget)){
-				rc = 1;
-				work_set_target_ratio(work, vhashcpu);
-				*hashes_done = pdata[19] - first_nonce + throughput;
-				pdata[19] = h_resNonce[thr_id][0];
-#if NBN > 1
-				if (h_resNonce[thr_id][1] != UINT32_MAX) {
-					pdata[21] = h_resNonce[thr_id][1];
-					applog(LOG_BLUE, "1:%x 2:%x", h_resNonce[thr_id][0], h_resNonce[thr_id][1]);
-					rc = 2;
+				if (vhashcpu[6] <= Htarg && fulltest(vhashcpu, ptarget)){
+					rc = 1;
+					work_set_target_ratio(work, vhashcpu);
+					*hashes_done = pdata[19] - first_nonce + throughput;
+					pdata[19] = h_resNonce[thr_id][i];
+					return rc;
 				}
-#endif
-//				gpulog(LOG_INFO,thr_id, "ptarget7 %08x ptarget6 %08x",ptarget[7],targetHigh);
-				return rc;
 			}
-			else {
-				gpulog(LOG_WARNING, thr_id, "result for %08x does not validate on CPU!", h_resNonce[thr_id][0]);
-			}
+			//DEBUGif(h_resNonce[thr_id][0]>=maxResults-1)printf("Limit reached\n");
 		}
-
 		pdata[19] += throughput;
 	} while (!work_restart[thr_id].restart && ((uint64_t)max_nonce > ((uint64_t)(pdata[19]) + (uint64_t)throughput)));
 
