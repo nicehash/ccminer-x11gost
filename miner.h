@@ -262,6 +262,7 @@ void sha256d(unsigned char *hash, const unsigned char *data, int len);
 struct work;
 
 extern int scanhash_blake256_8round(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
+extern int scanhash_decred(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_blake256_14round(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_whirlpoolx(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
 extern int scanhash_keccak256(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done);
@@ -274,6 +275,7 @@ void algo_free_all(int thr_id);
 
 extern void free_blake256_8round(int thr_id);
 extern void free_blake256_14round(int thr_id);
+extern void free_decred(int thr_id);
 extern void free_blake256(int thr_id);
 extern void free_whirlx(int thr_id);
 extern void free_keccak256(int thr_id);
@@ -480,7 +482,7 @@ extern void gpulog(int prio, int thr_id, const char *fmt, ...);
 void get_defconfig_path(char *out, size_t bufsize, char *argv0);
 extern void cbin2hex(char *out, const char *in, size_t len);
 extern char *bin2hex(const unsigned char *in, size_t len);
-extern bool hex2bin(unsigned char *p, const char *hexstr, size_t len);
+extern bool hex2bin(void *output, const char *hexstr, size_t len);
 extern int timeval_subtract(struct timeval *result, struct timeval *x,
 	struct timeval *y);
 extern bool fulltest(const uint32_t *hash, const uint32_t *target);
@@ -556,7 +558,7 @@ struct tx {
 };
 
 struct work {
-	uint32_t data[32];
+	uint32_t data[48];
 	uint32_t target[8];
 	uint32_t maxvote;
 
@@ -568,6 +570,8 @@ struct work {
 		uint32_t u32[2];
 		uint64_t u64[1];
 	} noncerange;
+
+	uint32_t nonces[2];
 
 	double targetdiff;
 	double shareratio;
@@ -626,6 +630,7 @@ struct pool_infos {
 	uint32_t accepted_count;
 	uint32_t rejected_count;
 	uint32_t solved_count;
+	uint32_t stales_count;
 	time_t last_share_time;
 	double best_share;
 	uint32_t disconnects;
@@ -645,8 +650,10 @@ int pool_get_first_valid(int startfrom);
 bool parse_pool_array(json_t *obj);
 void pool_dump_infos(void);
 
-json_t * json_rpc_call_pool(CURL *curl, struct pool_infos*,const char *req, bool lp_scan, bool lp, int *err);
-json_t * json_rpc_longpoll(CURL *curl, char *lp_url, struct pool_infos*,const char *req, int *err);
+json_t * json_rpc_call_pool(CURL *curl, struct pool_infos*,
+	const char *req, bool lp_scan, bool lp, int *err);
+json_t * json_rpc_longpoll(CURL *curl, char *lp_url, struct pool_infos*,
+	const char *req, int *err);
 
 bool stratum_socket_full(struct stratum_ctx *sctx, int timeout);
 bool stratum_send_line(struct stratum_ctx *sctx, char *s);
@@ -703,8 +710,10 @@ void restart_threads(void);
 size_t time2str(char* buf, time_t timer);
 char* atime2str(time_t timer);
 
-void applog_hash(unsigned char *hash);
-void applog_compare_hash(unsigned char *hash, unsigned char *hash2);
+void applog_hex(void *data, int len);
+void applog_hash(void *hash);
+void applog_hash64(void *hash);
+void applog_compare_hash(void *hash, void *hash_ref);
 
 void print_hash_tests(void);
 void blake256_8roundHash(void *output, const void *input);
@@ -713,6 +722,7 @@ void whirlxHash(void *state, const void *input);
 void keccak256_hash(void *state, const void *input);
 void lyra2re_hash(void *state, const void *input);
 void lyra2v2_hash(void *state, const void *input);
+void decred_hash(void *state, const void *input);
 
 #ifdef __cplusplus
 }

@@ -191,7 +191,9 @@ void blake256_8round_gpu_hash(const uint32_t threads, const uint32_t startNonce,
 		v[ 8] += v[13];
 		// only compute h6 & 7
 		if(xor3x(v[ 8],h7,v[ 7])==v[15]){
-			uint32_t pos = atomicInc(&resNonce[0],0xffffffff)+1; //global memory access will probably make the kernel unstable in high gpu clocks.
+			//global memory access will probably make the kernel unstable in high gpu clocks.
+			//And probably increase power consumption, reducing the (Mh/s)/W ration
+			uint32_t pos = atomicInc(&resNonce[0],0xffffffff)+1;
 			if(pos<maxResults)
 				resNonce[pos]=m[ 3];
 			return;

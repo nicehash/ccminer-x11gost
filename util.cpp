@@ -442,8 +442,11 @@ static json_t *json_rpc_call(CURL *curl, const char *url,
 	if (opt_protocol)
 		curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
 	curl_easy_setopt(curl, CURLOPT_URL, url);
-	if (opt_cert)
+	if (opt_cert) {
 		curl_easy_setopt(curl, CURLOPT_CAINFO, opt_cert);
+		// ignore CN domain name, allow to move cert files
+		curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0);
+	}
 	curl_easy_setopt(curl, CURLOPT_ENCODING, "");
 	curl_easy_setopt(curl, CURLOPT_FAILONERROR, 0);
 	curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1);
@@ -724,9 +727,10 @@ char *bin2hex(const uchar *in, size_t len)
 	return s;
 }
 
-bool hex2bin(uchar *p, const char *hexstr, size_t len)
+bool hex2bin(void *output, const char *hexstr, size_t len)
 {
-	char hex_byte[3];
+	uchar *p = (uchar *) output;
+	char hex_byte[4];
 	char *ep;
 
 	hex_byte[2] = '\0';
@@ -1791,8 +1795,9 @@ char* atime2str(time_t timer)
 }
 
 /* sprintf can be used in applog */
-static char* format_hash(char* buf, uchar *hash)
+static char* format_hash(char* buf, uint8_t* h)
 {
+	uchar *hash = (uchar*) h;
 	int len = 0;
 	for (int i=0; i < 32; i += 4) {
 		len += sprintf(buf+len, "%02x%02x%02x%02x ",
@@ -1802,23 +1807,39 @@ static char* format_hash(char* buf, uchar *hash)
 }
 
 /* to debug diff in data */
-extern void applog_compare_hash(uchar *hash, uchar *hash2)
+void applog_compare_hash(void *hash, void *hash_ref)
 {
 	char s[256] = "";
 	int len = 0;
+	uchar* hash1 = (uchar*)hash;
+	uchar* hash2 = (uchar*)hash_ref;
 	for (int i=0; i < 32; i += 4) {
-		const char *color = memcmp(hash+i, hash2+i, 4) ? CL_WHT : CL_GRY;
+		const char *color = memcmp(hash1+i, hash2+i, 4) ? CL_WHT : CL_GRY;
 		len += sprintf(s+len, "%s%02x%02x%02x%02x " CL_GRY, color,
-			hash[i], hash[i+1], hash[i+2], hash[i+3]);
+			hash1[i], hash1[i+1], hash1[i+2], hash1[i+3]);
 		s[len] = '\0';
 	}
 	applog(LOG_DEBUG, "%s", s);
 }
 
-extern void applog_hash(uchar *hash)
+void applog_hash(void *hash)
 {
 	char s[128] = {'\0'};
-	applog(LOG_DEBUG, "%s", format_hash(s, hash));
+	applog(LOG_DEBUG, "%s", format_hash(s, (uint8_t*)hash));
+}
+
+void applog_hash64(void *hash)
+{
+	char s[128] = {'\0'};
+	char t[128] = {'\0'};
+	applog(LOG_DEBUG, "%s %s", format_hash(s, (uint8_t*)hash), format_hash(t, &((uint8_t*)hash)[32]));
+}
+
+void applog_hex(void *data, int len)
+{
+	char* hex = bin2hex((uchar*)data, len);
+	applog(LOG_DEBUG, "%s", hex);
+	free(hex);
 }
 
 #define printpfx(n,h) \
@@ -1865,7 +1886,7 @@ void do_gpu_tests(void)
 	//scanhash_scrypt_jane(0, &work, NULL, 1, &done, &tv, &tv);
 
 	memset(work.data, 0, sizeof(work.data));
-	scanhash_sib(0, &work, 1, &done);
+	scanhash_decred(0, &work, 1, &done);
 
 	free(work_restart);
 	work_restart = NULL;

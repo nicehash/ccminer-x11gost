@@ -21,6 +21,7 @@ ccminer_SOURCES	= elist.h miner.h compat.h \
 			  crc32.c \
 			  ccminer.cpp pools.cpp util.cpp bench.cpp bignum.cpp \
 			  api.cpp hashlog.cpp nvml.cpp stats.cpp sysinfos.cpp cuda.cpp \
+			  Algo256/decred.cu \
 			  Algo256/blake256_8round.cu Algo256/blake256_14round.cu Algo256/cuda_blake256_14round.cu \
 			  Algo256/cuda_keccak256.cu Algo256/keccak256.cu \
 			  Algo256/cuda_skein256.cu \
@@ -64,6 +65,9 @@ Algo256/blake256_8round.o: Algo256/blake256_8round.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=56 --ptxas-options="-dlcm=cg" -o $@ -c $<
 
 Algo256/blake256_14round.o: Algo256/blake256_14round.cu
+	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 --ptxas-options="-dlcm=cg" -o $@ -c $<
+
+Algo256/decred.o: Algo256/decred.cu
 	$(NVCC) $(nvcc_FLAGS) --maxrregcount=128 --ptxas-options="-dlcm=cg" -o $@ -c $<
 
 Algo256/cuda_keccak256.o: Algo256/cuda_keccak256.cu
