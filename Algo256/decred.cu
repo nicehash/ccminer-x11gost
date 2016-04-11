@@ -2,6 +2,8 @@
  * Blake-256 Decred 180-Bytes input Cuda Kernel (Tested on SM 5/5.2)
  *
  * Tanguy Pruvot - Feb 2016
+ *
+ * Faster implementation
  * Alexis Provos - Mar 2016
  */
 
@@ -51,6 +53,17 @@ static uint32_t		*h_resNonce[MAX_GPUS];
 	v[d] = __byte_perm(v[d] ^ v[a], 0, 0x0321); \
 	v[c]+= v[d]; \
 	v[b] = ROTR32(v[b] ^ v[c], 7); \
+}
+
+#define precalcXORGS(x,y) { \
+	preXOR[i++]= (m[x] ^ z[y]); \
+	preXOR[i++]= (m[y] ^ z[x]); \
+}
+#define precalcXORGS2(x,y,x1,y1){\
+	preXOR[i++] = (m[ x] ^ z[ y]);\
+	preXOR[i++] = (m[x1] ^ z[y1]);\
+	preXOR[i++] = (m[ y] ^ z[ x]);\
+	preXOR[i++] = (m[y1] ^ z[x1]);\
 }
 
 #define pxorGS2(a,b,c,d,a1,b1,c1,d1) {\
@@ -256,16 +269,6 @@ void decred_cpu_setBlock_52(const uint32_t *input){
 	
 	CUDA_SAFE_CALL(cudaMemcpyToSymbol(c_data, data, 64, 0, cudaMemcpyHostToDevice));
 
-#define precalcXORGS(x,y) { \
-	preXOR[i++]= (m[x] ^ z[y]); \
-	preXOR[i++]= (m[y] ^ z[x]); \
-}
-#define precalcXORGS2(x,y,x1,y1){\
-	preXOR[i++] = (m[ x] ^ z[ y]);\
-	preXOR[i++] = (m[x1] ^ z[y1]);\
-	preXOR[i++] = (m[ y] ^ z[ x]);\
-	preXOR[i++] = (m[y1] ^ z[x1]);\
-}
 	precalcXORGS(10,11);
 	preXOR[ 0]+=data[ 6];
 	preXOR[i++] = (m[9] ^ z[8]);
@@ -390,6 +393,7 @@ extern "C" int scanhash_decred(int thr_id, struct work* work, uint32_t max_nonce
 		if (h_resNonce[thr_id][0] != UINT32_MAX){
 			rc = 1;
 //			work_set_target_ratio(work, vhashcpu);
+//TODO:			add cpu validation
 			*hashes_done = (*pnonce) - first_nonce + throughput;
 			work->nonces[0] = swab32(h_resNonce[thr_id][0]);
 			*pnonce = work->nonces[0];
