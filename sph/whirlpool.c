@@ -56,7 +56,7 @@ extern "C"{
 #endif
 
 #if SPH_SMALL_FOOTPRINT && !defined SPH_SMALL_FOOTPRINT_WHIRLPOOL
-#define SPH_SMALL_FOOTPRINT_WHIRLPOOL   1
+#define SPH_SMALL_FOOTPRINT_WHIRLPOOL   0
 #endif
 
 /* ====================================================================== */

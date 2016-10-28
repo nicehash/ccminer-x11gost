@@ -80,7 +80,7 @@
     <CudaCompile>
       <CInterleavedPTX>false</CInterleavedPTX>
       <GenerateLineInfo>true</GenerateLineInfo>
-      <MaxRegCount>80</MaxRegCount>
+      <MaxRegCount>128</MaxRegCount>
       <PtxAsOptionV>true</PtxAsOptionV>
       <Keep>true</Keep>
       <CodeGeneration>compute_50,sm_50</CodeGeneration>
@@ -112,7 +112,7 @@
     <CudaCompile>
       <CInterleavedPTX>false</CInterleavedPTX>
       <GenerateLineInfo>true</GenerateLineInfo>
-      <MaxRegCount>80</MaxRegCount>
+      <MaxRegCount>128</MaxRegCount>
       <PtxAsOptionV>true</PtxAsOptionV>
       <Keep>true</Keep>
       <CodeGeneration>compute_50,sm_50</CodeGeneration>
@@ -155,10 +155,10 @@
     </Link>
     <CudaCompile>
       <CInterleavedPTX>false</CInterleavedPTX>
-      <MaxRegCount>80</MaxRegCount>
+      <MaxRegCount>128</MaxRegCount>
       <PtxAsOptionV>true</PtxAsOptionV>
       <Keep>true</Keep>
-      <CodeGeneration>compute_20,sm_21;compute_30,sm_30;compute_35,sm_35;compute_50,sm_50;compute_52,sm_52</CodeGeneration>
+      <CodeGeneration>compute_50,sm_50;compute_52,sm_52</CodeGeneration>
       <AdditionalOptions>--ptxas-options="-O2" %(AdditionalOptions)</AdditionalOptions>
       <Optimization>O2</Optimization>
     </CudaCompile>
@@ -183,6 +183,11 @@
       <AdditionalIncludeDirectories>.;compat;compat\curl-for-windows\curl\include;compat\jansson;compat\getopt;compat\pthreads;compat\curl-for-windows\openssl\openssl\include;compat\curl-for-windows\zlib;%(AdditionalIncludeDirectories);$(CudaToolkitIncludeDir)</AdditionalIncludeDirectories>
       <MinimalRebuild>true</MinimalRebuild>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <EnableParallelCodeGeneration>
+      </EnableParallelCodeGeneration>
+      <AssemblerListingLocation>$(IntDir)</AssemblerListingLocation>
+      <ObjectFileName>$(IntDir)</ObjectFileName>
+      <XMLDocumentationFileName>$(IntDir)</XMLDocumentationFileName>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>false</GenerateDebugInformation>
@@ -198,16 +203,18 @@
     </Link>
     <CudaCompile>
       <CInterleavedPTX>false</CInterleavedPTX>
-      <MaxRegCount>80</MaxRegCount>
+      <MaxRegCount>128</MaxRegCount>
       <PtxAsOptionV>true</PtxAsOptionV>
       <Keep>true</Keep>
-      <CodeGeneration>compute_20,sm_21;compute_30,sm_30;compute_35,sm_35;compute_50,sm_50;compute_52,sm_52</CodeGeneration>
+      <CodeGeneration>compute_50,sm_50;compute_52,sm_52</CodeGeneration>
       <Include>$(NVTOOLSEXT_PATH)\include;..\..\..\Common\C99</Include>
       <Optimization>O3</Optimization>
       <TargetMachinePlatform>64</TargetMachinePlatform>
+      <AdditionalCompilerOptions>
+      </AdditionalCompilerOptions>
     </CudaCompile>
     <CudaLink>
-      <Optimization>O3</Optimization>
+      <Optimization>O2</Optimization>
       <PerformDeviceLink>false</PerformDeviceLink>
     </CudaLink>
   </ItemDefinitionGroup>
@@ -229,7 +236,11 @@
       <TreatWChar_tAsBuiltInType>false</TreatWChar_tAsBuiltInType>
       <Optimization Condition="'$(Configuration)'=='Release'">Full</Optimization>
     </ClCompile>
+    <ClCompile Include="lyra2\Sponge.c" />
+    <ClCompile Include="neoscrypt\neoscrypt-cpu.c" />
+    <ClCompile Include="nvapi.cpp" />
     <ClCompile Include="pools.cpp" />
+    <ClCompile Include="sph\blake2b.c" />
     <ClCompile Include="util.cpp" />
     <ClCompile Include="bench.cpp" />
     <ClCompile Include="bignum.cpp" />
@@ -241,23 +252,38 @@
     <ClCompile Include="sysinfos.cpp" />
     <ClCompile Include="crc32.c" />
     <ClCompile Include="lyra2\Lyra2.c" />
-    <ClCompile Include="lyra2\Sponge.c" />
+    <ClInclude Include="cuda_vectors.h" />
     <ClInclude Include="lyra2\cuda_lyra2_sm2.cuh" />
+    <ClInclude Include="neoscrypt\neoscrypt.h" />
+    <ClInclude Include="skein\skein_header.h" />
+    <ClInclude Include="sph\blake2b.h" />
+    <ClInclude Include="sph\sph_ripemd.h" />
+    <ClInclude Include="sph\sysendian.h" />
+    <ClInclude Include="streebog\streebog_arrays.cuh" />
     <ClCompile Include="sph\aes_helper.c" />
     <ClCompile Include="sph\blake.c" />
+    <ClCompile Include="sph\blake2s.c" />
     <ClCompile Include="sph\bmw.c" />
     <ClCompile Include="sph\cubehash.c" />
+    <ClCompile Include="sph\echo.c" />
+    <ClCompile Include="sph\fugue.c" />
+    <ClCompile Include="sph\groestl.c" />
+    <ClCompile Include="sph\haval.c" />
+    <ClCompile Include="sph\jh.c" />
     <ClCompile Include="sph\keccak.c" />
-    <ClCompile Include="sph\md_helper.c">
-      <ExcludedFromBuild>true</ExcludedFromBuild>
-    </ClCompile>
+    <ClCompile Include="sph\luffa.c" />
+    <ClCompile Include="sph\ripemd.c" />
+    <ClCompile Include="sph\sph_sha2.c" />
     <ClCompile Include="sph\sha2.c" />
     <ClCompile Include="sph\sha2big.c" />
+    <ClCompile Include="sph\shabal.c" />
     <ClCompile Include="sph\shavite.c" />
     <ClCompile Include="sph\simd.c" />
     <ClCompile Include="sph\skein.c" />
+    <ClCompile Include="sph\streebog.c" />
+    <ClCompile Include="sph\hamsi.c" />
+    <ClCompile Include="sph\hamsi_helper.c" />
     <ClCompile Include="sph\whirlpool.c" />
-    <ClCompile Include="sph\groestl.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="compat.h" />
@@ -278,68 +304,125 @@
     <ClInclude Include="compat\unistd.h" />
     <ClInclude Include="compat\winansi.h" />
     <ClInclude Include="cpuminer-config.h" />
-    <ClInclude Include="cuda_groestlcoin.h" />
     <ClInclude Include="cuda_helper.h" />
     <ClInclude Include="cuda_vector_uint2x4.h" />
     <ClInclude Include="elist.h" />
     <ClInclude Include="heavy\heavy.h" />
-    <ClInclude Include="hefty1.h" />
     <ClInclude Include="algos.h" />
     <ClInclude Include="miner.h" />
     <ClInclude Include="nvml.h" />
-    <ClInclude Include="quark\cuda_bmw512_sm3.cuh" />
-    <ClInclude Include="quark\cuda_quark_blake512_sp.cuh" />
-    <ClInclude Include="quark\cuda_skein512_sp.cuh" />
     <ClInclude Include="res\resource.h" />
-    <ClInclude Include="scrypt\salsa_kernel.h" />
     <ClInclude Include="sph\sph_blake.h" />
     <ClInclude Include="sph\sph_bmw.h" />
     <ClInclude Include="sph\sph_cubehash.h" />
     <ClInclude Include="sph\sph_echo.h" />
+    <ClInclude Include="sph\sph_fugue.h" />
     <ClInclude Include="sph\sph_groestl.h" />
+    <ClInclude Include="sph\sph_haval.h" />
+    <ClInclude Include="sph\sph_jh.h" />
     <ClInclude Include="sph\sph_keccak.h" />
+    <ClInclude Include="sph\sph_luffa.h" />
     <ClInclude Include="sph\sph_sha2.h" />
+    <ClInclude Include="sph\sph_shabal.h" />
     <ClInclude Include="sph\sph_shavite.h" />
     <ClInclude Include="sph\sph_simd.h" />
     <ClInclude Include="sph\sph_skein.h" />
+    <ClInclude Include="sph\sph_streebog.h" />
+    <ClInclude Include="sph\sph_hamsi.h" />
     <ClInclude Include="sph\sph_types.h" />
     <ClInclude Include="sph\sph_whirlpool.h" />
     <ClInclude Include="uint256.h" />
     <ClInclude Include="lyra2\Lyra2.h" />
     <ClInclude Include="lyra2\Sponge.h" />
     <ClInclude Include="lyra2\cuda_lyra2v2_sm3.cuh" />
+    <ClInclude Include="x11\cuda_x11.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <CudaCompile Include="cuda_myriadgroestl.cu" />
+    <CudaCompile Include="lbry\cuda_lbry_merged.cu" />
+    <CudaCompile Include="myriadgroestl.cu" />
+    <CudaCompile Include="neoscrypt\cuda_neoscrypt.cu" />
+    <CudaCompile Include="neoscrypt\neoscrypt.cu" />
+    <CudaCompile Include="nist5\cuda_nist5.cu" />
+    <CudaCompile Include="quark\cuda_keccak_skein512.cu" />
+    <CudaCompile Include="sia.cu" />
+    <CudaCompile Include="skein\skein.cu" />
+    <CudaCompile Include="skein\skein2.cu" />
+    <CudaCompile Include="streebog\cuda_keccak_streebog.cu" />
+    <CudaCompile Include="streebog\cuda_streebog.cu">
+      <MaxRegCount>72</MaxRegCount>
+    </CudaCompile>
+    <CudaCompile Include="streebog\sib.cu" />
+    <CudaCompile Include="streebog\veltor.cu" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="quark\cuda_quark.h" />
+    <ClInclude Include="quark\groestl_transf_quad.h" />
+    <ClInclude Include="quark\groestl_functions_quad.h" />
+    <CudaCompile Include="quark\cuda_bmw512.cu" />
+    <CudaCompile Include="quark\cuda_quark_jh512.cu" />
+    <CudaCompile Include="quark\cuda_quark_blake512.cu" />
+    <CudaCompile Include="quark\cuda_quark_compactionTest.cu">
+      <AdditionalOptions Condition="'$(Configuration)'=='Release'">-Xptxas "-abi=yes" %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(Configuration)'=='Debug'">-Xptxas "-abi=yes" %(AdditionalOptions)</AdditionalOptions>
+    </CudaCompile>
+    <CudaCompile Include="quark\cuda_quark_groestl512.cu" />
+    <CudaCompile Include="quark\cuda_quark_keccak512.cu" />
+    <CudaCompile Include="quark\cuda_quark_skein512.cu" />
+    <CudaCompile Include="quark\quarkcoin.cu" />
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="cuda.cpp" />
-    <CudaCompile Include="Algo256\blake256_8round.cu">
-      <MaxRegCount>56</MaxRegCount>
-      <AdditionalOptions Condition="'$(Configuration)'=='Release'">--ptxas-options="-dlcm=cg" %(AdditionalOptions)</AdditionalOptions>
-      <FastMath>true</FastMath>
-    </CudaCompile>
-    <CudaCompile Include="Algo256\blake256_14round.cu">
-      <MaxRegCount>128</MaxRegCount>
-      <AdditionalOptions Condition="'$(Configuration)'=='Release'">--ptxas-options="-dlcm=cg" %(AdditionalOptions)</AdditionalOptions>
-      <FastMath>true</FastMath>
-    </CudaCompile>
-    <CudaCompile Include="Algo256\decred.cu" />
+    <CudaCompile Include="Algo256\blake256_8round.cu" />
+    <CudaCompile Include="Algo256\blake256_14round.cu" />
+    <CudaCompile Include="Algo256\cuda_blake2s.cu" />
     <CudaCompile Include="Algo256\cuda_blake256_14round.cu" />
-    <CudaCompile Include="Algo256\keccak256.cu" />
     <CudaCompile Include="Algo256\cuda_bmw256.cu" />
     <CudaCompile Include="Algo256\cuda_cubehash256.cu" />
     <CudaCompile Include="Algo256\cuda_groestl256.cu" />
-    <CudaCompile Include="Algo256\cuda_keccak256.cu">
-      <MaxRegCount>72</MaxRegCount>
-    </CudaCompile>
+    <CudaCompile Include="Algo256\cuda_keccak256.cu" />
     <CudaCompile Include="Algo256\cuda_skein256.cu" />
+    <CudaCompile Include="Algo256\decred.cu" />
+    <CudaCompile Include="Algo256\keccak256.cu" />
     <CudaCompile Include="cuda_checkhash.cu">
       <CInterleavedPTX>false</CInterleavedPTX>
     </CudaCompile>
+    <CudaCompile Include="qubit\qubit.cu" />
+    <CudaCompile Include="qubit\qubit_luffa512.cu" />
+    <CudaCompile Include="lbry\cuda_sha256_lbry.cu" />
+    <CudaCompile Include="lbry\cuda_sha512_lbry.cu" />
+    <CudaCompile Include="lbry\lbry.cu" />
     <CudaCompile Include="lyra2\lyra2RE.cu" />
     <CudaCompile Include="lyra2\cuda_lyra2.cu" />
     <CudaCompile Include="lyra2\lyra2REv2.cu" />
     <CudaCompile Include="lyra2\cuda_lyra2v2.cu" />
-    <CudaCompile Include="x15\cuda_whirlpoolx.cu" />
-    <CudaCompile Include="x15\whirlpoolx.cu" />
+    <ClInclude Include="x11\cuda_x11_aes.cuh" />
+    <CudaCompile Include="x11\cuda_x11_cubehash512.cu" />
+    <CudaCompile Include="x11\cuda_x11_cubehash_shavite_512.cu" />
+    <CudaCompile Include="x11\cuda_x11_echo.cu" />
+    <CudaCompile Include="x11\cuda_x11_shavite512.cu" />
+    <ClInclude Include="x11\cuda_x11_simd512_func.cuh" />
+    <CudaCompile Include="x11\cuda_x11_simd512.cu" />
+    <CudaCompile Include="x11\c11.cu" />
+    <CudaCompile Include="x11\cuda_x11_simd_echo512.cu">
+      <MaxRegCount>72</MaxRegCount>
+    </CudaCompile>
+    <CudaCompile Include="x11\x11.cu" />
+    <CudaCompile Include="x11\x11evo.cu" />
+    <CudaCompile Include="x13\cuda_x13_hamsi_fugue512.cu">
+      <MaxRegCount>72</MaxRegCount>
+    </CudaCompile>
+    <CudaCompile Include="x13\x13.cu" />
+    <CudaCompile Include="x14\x14.cu" />
+    <CudaCompile Include="x14\cuda_x14_shabal512.cu" />
+    <CudaCompile Include="x15\cuda_x15_whirlpool.cu">
+      <MaxRegCount>72</MaxRegCount>
+    </CudaCompile>
+    <CudaCompile Include="x15\whirlpool.cu" />
+    <CudaCompile Include="x15\x15.cu" />
+    <CudaCompile Include="x17\x17.cu" />
+    <CudaCompile Include="x17\cuda_x17_haval256.cu" />
+    <CudaCompile Include="x17\cuda_x17_sha512.cu" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="res\ccminer.ico" />

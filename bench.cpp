@@ -45,10 +45,31 @@ void algo_free_all(int thr_id){
 	// only initialized algos will be freed
 	free_blake256_8round(thr_id);
 	free_blake256_14round(thr_id);
+	free_decred(thr_id);
+	free_blake2s(thr_id);
 	free_keccak256(thr_id);
-	free_lyra2v2(thr_id);
 	free_lyra2(thr_id);
-	free_whirlx(thr_id);
+	free_lyra2v2(thr_id);
+//	free_whirlx(thr_id);
+	free_skeincoin(thr_id);
+	free_skein2(thr_id);
+	free_nist5(thr_id);
+	free_quark(thr_id);
+	free_qubit(thr_id);
+	free_x11(thr_id);
+	free_x11evo(thr_id);
+	free_c11(thr_id);
+	free_sib(thr_id);
+	free_x13(thr_id);
+	free_x14(thr_id);
+	free_x15(thr_id);
+	free_x17(thr_id);
+	free_lbry(thr_id);
+	free_neoscrypt(thr_id);
+	free_myriad(thr_id);
+	free_sia(thr_id);
+	free_veltor(thr_id);
+//	free_yescrypt(thr_id);
 }
 
 // benchmark all algos (called once per mining thread)
@@ -64,6 +85,11 @@ bool bench_algo_switch_next(int thr_id)
 
 	algo++;
 
+	// Skip yescrypt
+//	if(algo == ALGO_YESCRYPT){
+//		algo++;
+//	}
+	
 	// free current algo memory and track mem usage
 	mused = cuda_available_memory(thr_id);
 	algo_free_all(thr_id);

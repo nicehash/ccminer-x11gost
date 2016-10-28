@@ -52,6 +52,11 @@ int cuda_num_devices()
 	return GPU_N;
 }
 
+int cuda_version()
+{
+	return (int) CUDART_VERSION;
+}
+
 void cuda_devicenames()
 {
 	cudaError_t err;
@@ -212,13 +217,19 @@ void cuda_clear_lasterror()
 } /* extern "C" */
 #endif
 
-int cuda_gpu_clocks(struct cgpu_info *gpu)
-{
+int cuda_gpu_info(struct cgpu_info *gpu){
+
 	cudaDeviceProp props;
 	if (cudaGetDeviceProperties(&props, gpu->gpu_id) == cudaSuccess) {
-		gpu->gpu_clock = props.clockRate;
-		gpu->gpu_memclock = props.memoryClockRate;
-		gpu->gpu_mem = props.totalGlobalMem;
+		//These are not looking like the current clocks...
+		gpu->gpu_clock = props.clockRate; //clockRate is the clock frequency in kilohertz;
+		gpu->gpu_memclock = props.memoryClockRate; //Peak memory clock frequency in kilohertz
+		gpu->gpu_mem = (props.totalGlobalMem / 1024); // kB
+#if defined(_WIN32) && defined(USE_WRAPNVML)
+		// required to get mem size > 4GB (size_t too small for bytes on 32bit)
+		nvapiMemGetInfo(gpu->gpu_id, &gpu->gpu_memfree, &gpu->gpu_mem); // kB
+#endif
+		gpu->gpu_mem = gpu->gpu_mem / 1024; // MB
 		return 0;
 	}
 	return -1;
@@ -227,7 +238,7 @@ int cuda_gpu_clocks(struct cgpu_info *gpu)
 // Zeitsynchronisations-Routine von cudaminer mit CPU sleep
 // Note: if you disable all of these calls, CPU usage will hit 100%
 typedef struct { double value[8]; } tsumarray;
-cudaError_t MyStreamSynchronize(cudaStream_t stream, int situation, int thr_id)
+/*cudaError_t MyStreamSynchronize(cudaStream_t stream, int situation, int thr_id)
 {
 	cudaError_t result = cudaSuccess;
 	if (abort_flag)
@@ -255,7 +266,7 @@ cudaError_t MyStreamSynchronize(cudaStream_t stream, int situation, int thr_id)
 	else
 		result = cudaStreamSynchronize(stream);
 	return result;
-}
+}*/
 
 void cudaReportHardwareFailure(int thr_id, cudaError_t err, const char* func)
 {

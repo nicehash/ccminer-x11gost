@@ -50,14 +50,17 @@ extern "C" double bn_hash_target_ratio(uint32_t* hash, uint32_t* target)
 }
 #endif
 
+// new method to save all nonce(s) share diff/ratio
+extern "C" void bn_set_target_ratio(struct work* work, uint32_t* hash, int nonce)
+{
+	bn_store_hash_target_ratio(hash, work->target, work, nonce);
+}
+
 // compute the diff ratio between a found hash and the target
 extern "C" double bn_hash_target_ratio(uint32_t* hash, uint32_t* target)
 {
 	uint256 h, t;
 	double dhash;
-
-	if (!opt_showdiff)
-		return 0.0;
 
 	memcpy(&t, (void*) target, 32);
 	memcpy(&h, (void*) hash, 32);
@@ -70,17 +73,15 @@ extern "C" double bn_hash_target_ratio(uint32_t* hash, uint32_t* target)
 }
 
 // store ratio in work struct
-extern "C" void bn_store_hash_target_ratio(uint32_t* hash, uint32_t* target, struct work* work)
+extern "C" void bn_store_hash_target_ratio(uint32_t* hash, uint32_t* target, struct work* work, int nonce)
 {
 	// only if the option is enabled (to reduce cpu usage)
-	if (opt_showdiff) {
-		work->shareratio = bn_hash_target_ratio(hash, target);
-		work->sharediff = work->targetdiff * work->shareratio;
-	}
+	work->shareratio[nonce] = bn_hash_target_ratio(hash, target);
+	work->sharediff[nonce] = work->targetdiff * work->shareratio[0];
 }
 
 extern "C" void work_set_target_ratio(struct work* work, uint32_t* hash)
 {
-	bn_store_hash_target_ratio(hash, work->target, work);
+	bn_store_hash_target_ratio(hash, work->target, work,0);
 }
 

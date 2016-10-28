@@ -8,7 +8,7 @@
  * Software Foundation; either version 2 of the License, or (at your option)
  * any later version.  See COPYING for more details.
  */
-#define APIVERSION "1.7"
+#define APIVERSION "1.8"
 
 #ifdef WIN32
 # define  _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -33,6 +33,7 @@
 
 #include "miner.h"
 #include "nvml.h"
+#include "algos.h"
 
 #ifndef WIN32
 # include <errno.h>
@@ -100,8 +101,7 @@ extern struct stratum_ctx stratum;
 extern int num_cpus;
 extern float cpu_temp(int);
 extern uint32_t cpu_clock(int);
-// cuda.cpp
-extern int cuda_gpu_clocks(struct cgpu_info *gpu);
+
 
 char driver_version[32] = { 0 };
 
@@ -117,16 +117,15 @@ static void gpustatus(int thr_id)
 		char buf[512]; *buf = '\0';
 		char* card;
 
-#ifdef USE_WRAPNVML
-		cgpu->has_monitoring = true;
-		cgpu->gpu_bus = gpu_busid(cgpu);
-		cgpu->gpu_temp = gpu_temp(cgpu);
-		cgpu->gpu_fan = (uint16_t) gpu_fanpercent(cgpu);
-		cgpu->gpu_fan_rpm = (uint16_t) gpu_fanrpm(cgpu);
-		cgpu->gpu_power = gpu_power(cgpu);
-#endif
-		cuda_gpu_clocks(cgpu);
-
+		cuda_gpu_info(cgpu);
+		#ifdef USE_WRAPNVML
+				cgpu->has_monitoring = true;
+				cgpu->gpu_bus = gpu_busid(cgpu);
+				cgpu->gpu_temp = (uint32_t)gpu_temp(cgpu);
+				cgpu->gpu_fan = (uint16_t) gpu_fanpercent(cgpu);
+				cgpu->gpu_fan_rpm = (uint16_t) gpu_fanrpm(cgpu);
+				cgpu->gpu_power = gpu_power(cgpu); // mWatts
+		#endif
 		// todo: per gpu
 		cgpu->accepted = p->accepted_count;
 		cgpu->rejected = p->rejected_count;
@@ -135,7 +134,7 @@ static void gpustatus(int thr_id)
 
 		card = device_name[gpuid];
 
-		snprintf(buf, sizeof(buf), "GPU=%d;BUS=%hd;CARD=%s;TEMP=%.1f;"
+		snprintf(buf, sizeof(buf), "GPU=%d;BUS=%hd;CARD=%s;TEMP=%hu;"
 			"POWER=%u;FAN=%hu;RPM=%hu;FREQ=%d;KHS=%.2f;HWF=%d;I=%.1f;THR=%u|",
 			gpuid, cgpu->gpu_bus, card, cgpu->gpu_temp,
 			cgpu->gpu_power, cgpu->gpu_fan, cgpu->gpu_fan_rpm,
@@ -165,7 +164,7 @@ static char *getthreads(char *params)
 */
 static char *getsummary(char *params)
 {
-	char algo[64]; *algo = '\0';
+	char algo[64] = { 0 };
 	time_t ts = time(NULL);
 	double accps, uptime = difftime(ts, startup);
 	uint32_t wait_time = 0, solved_count = 0;
@@ -200,7 +199,7 @@ static char *getpoolnfo(char *params)
 {
 	char *s = buffer;
 	char jobid[128] = { 0 };
-	char nonce[128] = { 0 };
+	char extra[96] = { 0 };
 	int pooln = params ? atoi(params) % num_pools : cur_pooln;
 	struct pool_infos *p = &pools[pooln];
 	uint32_t last_share = 0;
@@ -213,16 +212,24 @@ static char *getpoolnfo(char *params)
 		strncpy(jobid, stratum.job.job_id, sizeof(stratum.job.job_id));
 	if (stratum.job.xnonce2) {
 		/* used temporary to be sure all is ok */
-		sprintf(nonce, "0x");
-		cbin2hex(&nonce[2], (const char*) stratum.job.xnonce2, stratum.xnonce2_size);
+		sprintf(extra, "0x");
+		if (p->algo == ALGO_DECRED) {
+			char compat[32] = { 0 };
+			cbin2hex(&extra[2], (const char*) stratum.xnonce1, min(36, stratum.xnonce2_size));
+			cbin2hex(compat, (const char*) stratum.job.xnonce2, 4);
+			memcpy(&extra[2], compat, 8); // compat extranonce
+		} else {
+			cbin2hex(&extra[2], (const char*) stratum.job.xnonce2, stratum.xnonce2_size);
+		}
 	}
 
-	snprintf(s, MYBUFSIZ, "URL=%s;USER=%s;SOLV=%d;ACC=%d;REJ=%d;H=%u;JOB=%s;DIFF=%.6f;"
+	snprintf(s, MYBUFSIZ, "POOL=%s;ALGO=%s;URL=%s;USER=%s;SOLV=%d;ACC=%d;REJ=%d;STALE=%u;H=%u;JOB=%s;DIFF=%.6f;"
 		"BEST=%.6f;N2SZ=%d;N2=%s;PING=%u;DISCO=%u;WAIT=%u;UPTIME=%u;LAST=%u|",
+		strlen(p->name) ? p->name : p->short_url, algo_names[p->algo],
 		p->url, p->type & POOL_STRATUM ? p->user : "",
-		p->solved_count, p->accepted_count, p->rejected_count,
+		p->solved_count, p->accepted_count, p->rejected_count, p->stales_count,
 		stratum.job.height, jobid, stratum_diff, p->best_share,
-		(int) stratum.xnonce2_size, nonce, stratum.answer_msec,
+		(int) stratum.xnonce2_size, extra, stratum.answer_msec,
 		p->disconnects, p->wait_time, p->work_time, last_share);
 
 	return s;
@@ -247,18 +254,20 @@ static void gpuhwinfos(int gpu_id)
 	if (cgpu == NULL)
 		return;
 
+	cuda_gpu_info(cgpu);
 #ifdef USE_WRAPNVML
 	cgpu->has_monitoring = true;
 	cgpu->gpu_bus = gpu_busid(cgpu);
-	cgpu->gpu_temp = gpu_temp(cgpu);
+	cgpu->gpu_temp = (uint32_t)gpu_temp(cgpu);
 	cgpu->gpu_fan = (uint16_t) gpu_fanpercent(cgpu);
 	cgpu->gpu_fan_rpm = (uint16_t) gpu_fanrpm(cgpu);
 	cgpu->gpu_pstate = (int16_t) gpu_pstate(cgpu);
 	cgpu->gpu_power = gpu_power(cgpu);
 	gpu_info(cgpu);
+#ifdef WIN32
+	if (opt_debug) nvapi_pstateinfo(cgpu->gpu_id);
 #endif
-
-	cuda_gpu_clocks(cgpu);
+#endif
 
 	memset(pstate, 0, sizeof(pstate));
 	if (cgpu->gpu_pstate != -1)
@@ -267,9 +276,9 @@ static void gpuhwinfos(int gpu_id)
 	card = device_name[gpu_id];
 
 	snprintf(buf, sizeof(buf), "GPU=%d;BUS=%hd;CARD=%s;SM=%u;MEM=%lu;"
-		"TEMP=%.1f;FAN=%hu;RPM=%hu;FREQ=%d;MEMFREQ=%d;PST=%s;POWER=%u;"
+		"TEMP=%hu;FAN=%hu;RPM=%hu;FREQ=%d;MEMFREQ=%d;PST=%s;POWER=%u;"
 		"VID=%hx;PID=%hx;NVML=%d;NVAPI=%d;SN=%s;BIOS=%s|",
-		gpu_id, cgpu->gpu_bus, card, cgpu->gpu_arch, cgpu->gpu_mem,
+		gpu_id, cgpu->gpu_bus, card, cgpu->gpu_arch, (uint32_t)cgpu->gpu_mem,
 		cgpu->gpu_temp, cgpu->gpu_fan, cgpu->gpu_fan_rpm,
 		cgpu->gpu_clock, cgpu->gpu_memclock,
 		pstate, cgpu->gpu_power,
@@ -997,16 +1006,8 @@ void api_set_throughput(int thr_id, uint32_t throughput)
 {
 	if (thr_id < MAX_GPUS && thr_info) {
 		struct cgpu_info *cgpu = &thr_info[thr_id].gpu;
-		uint32_t ws = throughput;
-		uint8_t i = 0;
 		cgpu->throughput = throughput;
-		while (ws > 1 && i++ < 32)
-			ws = ws >> 1;
-		cgpu->intensity_int = i;
-		cgpu->intensity = (float) i;
-		if (i && (1U << i) < throughput) {
-			cgpu->intensity += ((float) (throughput-(1U << i)) / (1U << i));
-		}
+		cgpu->intensity = throughput2intensity(throughput);
 	}
 	// to display in bench results
 	if (opt_benchmark)

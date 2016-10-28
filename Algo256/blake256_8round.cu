@@ -1,8 +1,8 @@
 /**
- * Optimized Blake-256 8-rounds Cuda Kernel (Tested on SM >3.0)
- * Based upon Blake-256 implementation of Tanguy Pruvot - Nov. 2014
+ * Blake-256 Cuda Kernel (Tested on SM 5/5.2)
+ * Tanguy Pruvot / SP - Jan 2016
  *
- * Provos Alexis - Jan. 2016
+ * Provos Alexis (Tested on SM5.2) - Jan. 2016
  * Reviewed by tpruvot - Feb 2016
  * 
  * Fixed CUDA 7.5 flaw
@@ -34,9 +34,8 @@ extern "C" {
 #define TPB 768
 #define NPT 384
 #define maxResults 8
-#define NBN 1
 
-__constant__ uint32_t _ALIGN(16) d_data[20];
+__constant__ uint32_t _ALIGN(16) c_data[20];
 
 /* 8 adapters max */
 static uint32_t		*d_resNonce[MAX_GPUS];
@@ -55,144 +54,159 @@ extern "C" void blake256_8roundHash(void *output, const void *input){
 
 	memcpy(output, hash, 32);
 }
-#define GS4(a,b,c,d,x,y,a1,b1,c1,d1,x1,y1,a2,b2,c2,d2,x2,y2,a3,b3,c3,d3,x3,y3) { \
-	v[ a]+= (m[ x] ^ z[ y]) + v[ b];		v[a1]+= (m[x1] ^ z[y1]) + v[b1];		v[a2]+= (m[x2] ^ z[y2]) + v[b2]; 		v[a3]+= (m[x3] ^ z[y3]) + v[b3]; \
-	v[ d] = __byte_perm(v[ d] ^ v[ a], 0, 0x1032);	v[d1] = __byte_perm(v[d1] ^ v[a1], 0, 0x1032);	v[d2] = __byte_perm(v[d2] ^ v[a2], 0, 0x1032);	v[d3] = __byte_perm(v[d3] ^ v[a3], 0, 0x1032); \
-	v[ c]+= v[ d];					v[c1]+= v[d1];					v[c2]+= v[d2];					v[c3]+= v[d3]; \
-	v[ b] = ROTR32(v[ b] ^ v[ c], 12);		v[b1] = ROTR32(v[b1] ^ v[c1], 12);		v[b2] = ROTR32(v[b2] ^ v[c2], 12);		v[b3] = ROTR32(v[b3] ^ v[c3], 12); \
-	v[ a]+= (m[ y] ^ z[ x]) + v[ b];		v[a1]+= (m[y1] ^ z[x1]) + v[b1];		v[a2]+= (m[y2] ^ z[x2]) + v[b2];		v[a3]+= (m[y3] ^ z[x3]) + v[b3]; \
-	v[ d] = __byte_perm(v[ d] ^ v[ a], 0, 0x0321);	v[d1] = __byte_perm(v[d1] ^ v[a1], 0, 0x0321);	v[d2] = __byte_perm(v[d2] ^ v[a2], 0, 0x0321);	v[d3] = __byte_perm(v[d3] ^ v[a3], 0, 0x0321); \
-	v[ c]+= v[ d];					v[c1]+= v[d1];					v[c2]+= v[d2];					v[c3]+= v[d3]; \
-	v[ b] = ROTR32(v[ b] ^ v[ c], 7);		v[b1] = ROTR32(v[b1] ^ v[c1], 7);		v[b2] = ROTR32(v[b2] ^ v[c2], 7);		v[b3] = ROTR32(v[b3] ^ v[c3], 7); \
-}
 
-#define GS2(a,b,c,d,x,y,a1,b1,c1,d1,x1,y1) { \
-	v[ a]+= (m[ x] ^ z[ y]) + v[ b];		v[a1]+= (m[x1] ^ z[y1]) + v[b1];\
-	v[ d] = __byte_perm(v[ d] ^ v[ a], 0, 0x1032);	v[d1] = __byte_perm(v[d1] ^ v[a1], 0, 0x1032);\
-	v[ c]+= v[ d];					v[c1]+= v[d1];\
-	v[ b] = ROTR32(v[ b] ^ v[ c], 12);		v[b1] = ROTR32(v[b1] ^ v[c1], 12);\
-	v[ a]+= (m[ y] ^ z[ x]) + v[ b];		v[a1]+= (m[y1] ^ z[x1]) + v[b1];\
-	v[ d] = __byte_perm(v[ d] ^ v[ a], 0, 0x0321);	v[d1] = __byte_perm(v[d1] ^ v[a1], 0, 0x0321);\
-	v[ c]+= v[ d];					v[c1]+= v[d1];\
-	v[ b] = ROTR32(v[ b] ^ v[ c], 7);		v[b1] = ROTR32(v[b1] ^ v[c1], 7);\
+#define GSn4(a,b,c,d,x,y,a1,b1,c1,d1,x1,y1,a2,b2,c2,d2,x2,y2,a3,b3,c3,d3,x3,y3) { \
+	v[ a] = v[ a] + v[ b] + x;		v[a1] = v[a1] + v[b1] + x1;		v[a2] = v[a2] + v[b2] + x2;	 	v[a3] = v[a3] + v[b3] + x3;\
+	v[ d] = ROL16(v[ d] ^ v[ a]);		v[d1] = ROL16(v[d1] ^ v[a1]);		v[d2] = ROL16(v[d2] ^ v[a2]);		v[d3] = ROL16(v[d3] ^ v[a3]); \
+	v[ c] = v[ c] + v[ d];			v[c1] = v[c1] + v[d1];			v[c2] = v[c2] + v[d2];			v[c3] = v[c3] + v[d3]; \
+	v[ b] = ROTR32(v[ b] ^ v[ c], 12);	v[b1] = ROTR32(v[b1] ^ v[c1], 12);	v[b2] = ROTR32(v[b2] ^ v[c2], 12);	v[b3] = ROTR32(v[b3] ^ v[c3], 12); \
+	v[ a] = v[ a] + v[ b] + y;		v[a1] = v[a1] + v[b1] + y1;		v[a2] = v[a2] + v[b2] + y2;		v[a3] = v[a3] + v[b3] + y3; \
+	v[ d] = ROR8(v[ d] ^ v[ a]);		v[d1] = ROR8(v[d1] ^ v[a1]);		v[d2] = ROR8(v[d2] ^ v[a2]);		v[d3] = ROR8(v[d3] ^ v[a3]); \
+	v[ c] = v[ c] + v[ d];			v[c1] = v[c1] + v[d1];			v[c2] = v[c2] + v[d2];			v[c3] = v[c3] + v[d3]; \
+	v[ b] = ROTR32(v[ b] ^ v[ c], 7);	v[b1] = ROTR32(v[b1] ^ v[c1], 7);	v[b2] = ROTR32(v[b2] ^ v[c2], 7);	v[b3] = ROTR32(v[b3] ^ v[c3], 7); \
 }
 
 #define GS(a,b,c,d,x,y) { \
 	v[a] += (m[x] ^ z[y]) + v[b]; \
-	v[d] = __byte_perm(v[d] ^ v[a],0, 0x1032); \
+	v[d] = ROL16(v[d] ^ v[a]); \
 	v[c] += v[d]; \
 	v[b] = ROTR32(v[b] ^ v[c],12); \
 	v[a] += (m[y] ^ z[x]) + v[b]; \
-	v[d] = __byte_perm(v[d] ^ v[a],0, 0x0321); \
+	v[d] = ROR8(v[d] ^ v[a]); \
 	v[c] += v[d]; \
 	v[b] = ROTR32(v[b] ^ v[c], 7); \
 }
 	
-__global__
-void blake256_8round_gpu_hash(const uint32_t threads, const uint32_t startNonce, uint32_t *resNonce,const uint64_t highTarget){
-	uint32_t v[16];
-	uint4 tmp[16];
-
-	const uint64_t thread   = blockDim.x * blockIdx.x + threadIdx.x;
+__global__ __launch_bounds__(TPB)
+void blake256_8round_gpu_hash(const uint32_t threads, const uint32_t startNonce, uint32_t *resNonce){
+	      uint64_t m3	= startNonce + blockDim.x * blockIdx.x + threadIdx.x;
 	const uint64_t step     = gridDim.x * blockDim.x;
 	const uint64_t maxNonce = startNonce + threads;
 
-	const uint32_t z[16] = {
+	uint32_t v[16];
+	uint32_t z[16] = {
 		0x243F6A88, 0x85A308D3, 0x13198A2E, 0x03707344, 0xA4093822, 0x299F31D0, 0x082EFA98, 0xEC4E6C89,
 		0x452821E6, 0x38D01377, 0xBE5466CF, 0x34E90C6C, 0xC0AC29B7, 0xC97C50DD, 0x3F84D5B5, 0xB5470917
 	};
 
-//PREFETCH
-	#pragma unroll 4
-	for(int i=0;i<4;i++){
-		tmp[i] = *(uint4*)&d_data[i<<2];
-	}
-
 	uint32_t m[16] = {
-				  d_data[16],	d_data[17],	d_data[18],	0,
-				  0x80000000,	0,		0,		0,
-				  0,		0,		0,		0,
-				  0,		1,		0,		640
-	};		
+				  c_data[16],	c_data[17],	c_data[18],	0,	0x80000000,	0,		0,		0,
+				  0,		0,		0,		0,	0,		1,		0,		640
+	};
 
-	const uint32_t h7 = d_data[19];
-//END OF PREFETCH
-	for(uint64_t m3 = startNonce + thread; m3<maxNonce;m3+=step){
+	uint32_t h7 = c_data[19];
 
-		m[3]  = m3;
+	uint32_t xors[16];
+	for(; m3<maxNonce;m3+=step){
+
+		m[3]  = _LODWORD(m3);
 		
-		#pragma unroll 4
-		for(int i=0;i<4;i++){
-			*(uint4*)&v[i<<2] = tmp[ i];
+		#pragma unroll 16
+		for(int i=0;i<16;i++){
+			v[i] = c_data[i];
 		}
-		v[ 1]+= m[3] ^ z[2];
-		v[13] = __byte_perm(v[13] ^ v[ 1],0, 0x0321);
-		v[ 9]+= v[13];
-		v[ 5] = ROTR32(v[ 5] ^ v[ 9], 7);
-		v[ 0]+= v[ 5];
-		v[15] = __byte_perm(v[15] ^ v[ 0],0, 0x1032);
-	
-		v[10]+= v[15];
-		v[ 5] = ROTR32(v[ 5] ^ v[10], 12);
-		v[ 0]+= z[8] + v[ 5];
-		v[15] = __byte_perm(v[15] ^ v[ 0],0, 0x0321);
-		v[10]+= v[15];
-		v[ 5] = ROTR32(v[ 5] ^ v[10], 7);
-
-		v[ 1] += (m[10] ^ z[11]) + v[ 6];
-		v[13] = __byte_perm(v[13] ^ v[ 2],0, 0x1032);
-		v[12] = __byte_perm(v[12] ^ v[ 1],0, 0x1032);
-		v[ 8] += v[13];
-		v[11] += v[12];
-		v[ 9] += v[14];
-		v[ 7] = ROTR32(v[ 7] ^ v[ 8], 12);
-		v[ 6] = ROTR32(v[ 6] ^ v[11], 12);
-		v[ 4] = ROTR32(v[ 4] ^ v[ 9], 12);
-		v[ 2] += (m[13] ^ z[12]) + v[ 7];
-		v[ 1] += (m[11] ^ z[10]) + v[ 6];
-		v[ 3] += (m[15] ^ z[14]) + v[ 4];
-		v[13] = __byte_perm(v[13] ^ v[ 2],0, 0x0321);
-		v[12] = __byte_perm(v[12] ^ v[ 1],0, 0x0321);
-		v[14] = __byte_perm(v[14] ^ v[ 3],0, 0x0321);
-		v[ 8] += v[13];
-		v[11] += v[12];
-		v[ 9] += v[14];
-		v[ 7] = ROTR32(v[ 7] ^ v[ 8], 7);
-		v[ 6] = ROTR32(v[ 6] ^ v[11], 7);
-		v[ 4] = ROTR32(v[ 4] ^ v[ 9], 7);		
-
-		GS4(0, 4, 8,12,	14,10,		1, 5, 9,13,	 4, 8,		2, 6,10,14,	 9,15,		3, 7,11,15,	13, 6);
-		GS4(0, 5,10,15,	 1,12,		1, 6,11,12,	 0, 2,		2, 7, 8,13,	11, 7,		3, 4, 9,14,	 5, 3);
-		GS4(0, 4, 8,12,	11, 8,		1, 5, 9,13,	12, 0,		2, 6,10,14,	 5, 2,		3, 7,11,15,	15,13);
-		GS4(0, 5,10,15,	10,14,		1, 6,11,12,	 3, 6,		2, 7, 8,13,	 7, 1,		3, 4, 9,14,	 9, 4);
-		GS4(0, 4, 8,12,	 7, 9,		1, 5, 9,13,	 3, 1,		2, 6,10,14,	13,12,		3, 7,11,15,	11,14);
-		GS4(0, 5,10,15,	 2, 6,		1, 6,11,12,	 5,10,		2, 7, 8,13,	 4, 0,		3, 4, 9,14,	15, 8);
-		GS4(0, 4, 8,12,	 9, 0,		1, 5, 9,13,	 5, 7,		2, 6,10,14,	 2, 4,		3, 7,11,15,	10,15);
-		GS4(0, 5,10,15,	14, 1,		1, 6,11,12,	11,12,		2, 7, 8,13,	 6, 8,		3, 4, 9,14,	 3,13);
-		GS4(0, 4, 8,12,	 2,12,		1, 5, 9,13,	 6,10,		2, 6,10,14,	 0,11,		3, 7,11,15,	 8, 3);
-		GS2(0, 5,10,15,	 4,13,		1, 6,11,12,	 7, 5);GS2(	2, 7, 8,13,	15,14,		3, 4, 9,14,	 1, 9);//dont ask, it's slightly better (Pallas did something similar on DCR)
-		GS2(0, 4, 8,12,	12, 5,		1, 5, 9,13,	 1,15);GS2(	2, 6,10,14,	14,13,		3, 7,11,15,	 4,10);//TODO: A first thought is that
-		GS2(0, 5,10,15,	 0, 7,		1, 6,11,12,	 6, 3);GS2(	2, 7, 8,13,	 9, 2,		3, 4, 9,14,	 8,11);//It's probably decreasing the cache hit ratio of warps
-		GS2(0, 4, 8,12,	13,11,		1, 5, 9,13,	 7,14);GS2(	2, 6,10,14,	12, 1,		3, 7,11,15,	 3, 9);//Needs profiling and to try some more combinations
+		v[ 1] = v[ 1] + (m[3] ^ z[2]);		v[13] = ROR8(v[13] ^ v[ 1]);
+		v[ 9] = v[ 9] + v[13];			v[ 5] = ROTR32(v[ 5] ^ v[ 9], 7);
 		
-		v[ 0] += (m[ 5] ^ z[0]) + v[ 5];
-		v[ 2] += (m[ 8] ^ z[6]) + v[ 7];
-		v[15] = __byte_perm(v[15] ^ v[ 0],0, 0x1032);			
-		v[13] = __byte_perm(v[13] ^ v[ 2],0, 0x1032);
-		v[10] += v[15];
-		v[ 8] += v[13];
+		v[ 0] = v[ 0] + v[ 5];			v[15] = ROL16(v[15] ^ v[ 0]);
+		v[10] = v[10] + v[15];			v[ 5] = ROTR32(v[ 5] ^ v[10], 12);
+		v[ 0] = v[ 0] + v[ 5] + z[ 8];		v[15] = ROR8(v[15] ^ v[ 0]);
+		v[10] = v[10] + v[15];			v[ 5] = ROTR32(v[ 5] ^ v[10], 7);
+
+		v[ 1] = v[ 1] + v[ 6] + z[11];
+		v[12] = ROL16(v[12] ^ v[ 1]);		v[13] = ROL16(v[13] ^ v[ 2]);
+		v[11] = v[11] + v[12];			v[ 8] = v[ 8] + v[13];			v[ 9] = v[ 9] + v[14];
+		v[ 6] = ROTR32(v[ 6] ^ v[11], 12);	v[ 7] = ROTR32(v[ 7] ^ v[ 8], 12);	v[ 4] = ROTR32(v[ 4] ^ v[ 9], 12);
+		v[ 1] = v[ 1] + v[ 6] + z[10];		v[ 2] = v[ 2] + v[ 7] + (m[13] ^ z[12]);v[ 3] = v[ 3] + v[ 4] + (m[15] ^ z[14]);
+		v[12] = ROR8(v[12] ^ v[ 1]);		v[13] = ROR8(v[13] ^ v[ 2]);		v[14] = ROR8(v[14] ^ v[ 3]);
+		v[11] = v[11] + v[12];			v[ 8] = v[ 8] + v[13];			v[ 9] = v[ 9] + v[14];
+		v[ 6] = ROTR32(v[ 6] ^ v[11], 7);	v[ 7] = ROTR32(v[ 7] ^ v[ 8], 7);	v[ 4] = ROTR32(v[ 4] ^ v[ 9], 7);		
+
+		// 1{ 14, 10,  4,  8,  9, 15, 13,  6,  1, 12,  0,  2, 11,  7,  5,  3 }
+		xors[ 0] = z[10];		xors[ 1] = m[ 4] ^ z[ 8];	xors[ 2] = z[15];		xors[ 3] = m[13] ^ z[ 6];
+		xors[ 4] = z[14];		xors[ 5] = z[ 4];		xors[ 6] = z[ 9] ^ m[15];	xors[ 7] = z[13];
+
+		xors[ 8] = m[ 1] ^ z[12];	xors[ 9] = m[ 0] ^ z[ 2];	xors[10] = z[ 7];		xors[11] = z[ 3];
+		xors[12] = z[ 1];		xors[13] = z[ 0] ^ m[ 2];	xors[14] = z[11];		xors[15] = z[ 5] ^ m[ 3];
+				
+		GSn4(0, 4, 8,12,	xors[ 0],xors[ 4],	1, 5, 9,13,	xors[ 1],xors[ 5],	2, 6,10,14,	xors[ 2],xors[ 6],	3, 7,11,15,	xors[ 3],xors[ 7]);
+		GSn4(0, 5,10,15,	xors[ 8],xors[12],	1, 6,11,12,	xors[ 9],xors[13],	2, 7, 8,13,	xors[10],xors[14],	3, 4, 9,14,	xors[11],xors[15]);
+
+		// 2{ 11,  8, 12,  0,  5,  2, 15, 13, 10, 14,  3,  6,  7,  1,  9,  4 }
+		xors[ 0] = z[ 8];		xors[ 1] = z[ 0];		xors[ 2] = z[ 2];		xors[ 3] = m[15] ^ z[13];
+		xors[ 4] = z[11];		xors[ 5] = z[12] ^ m[ 0];	xors[ 6] = z[ 5] ^ m[ 2];	xors[ 7] = z[15] ^ m[13];
+
+		xors[ 8] = z[14];		xors[ 9] = m[ 3] ^ z[ 6];	xors[10] = z[ 1];		xors[11] = z[ 4];
+		xors[12] = z[10];		xors[13] = z[ 3];		xors[14] = z[ 7] ^ m[ 1];	xors[15] = z[ 9] ^ m[ 4];
+
+		GSn4(0, 4, 8,12,	xors[ 0],xors[ 4],	1, 5, 9,13,	xors[ 1],xors[ 5],	2, 6,10,14,	xors[ 2],xors[ 6],	3, 7,11,15,	xors[ 3],xors[ 7]);
+		GSn4(0, 5,10,15,	xors[ 8],xors[12],	1, 6,11,12,	xors[ 9],xors[13],	2, 7, 8,13,	xors[10],xors[14],	3, 4, 9,14,	xors[11],xors[15]);
+
+		// 3{  7,  9,  3,  1, 13, 12, 11, 14,  2,  6,  5, 10,  4,  0, 15,  8 }
+		xors[ 0] = z[ 9];		xors[ 1] = m[ 3] ^ z[ 1];	xors[ 2] = m[13] ^ z[12];	xors[ 3] = z[14];
+		xors[ 4] = z[ 7];		xors[ 5] = z[ 3] ^ m[ 1];	xors[ 6] = z[13];		xors[ 7] = z[11];
+
+		xors[ 8] = m[ 2] ^ z[ 6];	xors[ 9] = z[10];		xors[10] = m[ 4] ^ z[ 0];	xors[11] = m[15] ^ z[ 8];
+		xors[12] = z[ 2];		xors[13] = z[ 5];		xors[14] = z[ 4] ^ m[ 0];	xors[15] = z[15];
+
+		GSn4(0, 4, 8,12,	xors[ 0],xors[ 4],	1, 5, 9,13,	xors[ 1],xors[ 5],	2, 6,10,14,	xors[ 2],xors[ 6],	3, 7,11,15,	xors[ 3],xors[ 7]);
+		GSn4(0, 5,10,15,	xors[ 8],xors[12],	1, 6,11,12,	xors[ 9],xors[13],	2, 7, 8,13,	xors[10],xors[14],	3, 4, 9,14,	xors[11],xors[15]);
+		
+		// 4{  9,  0,  5,  7,  2,  4, 10, 15, 14,  1, 11, 12,  6,  8,  3, 13 }
+		xors[ 0] = z[ 0];		xors[ 1] = z[ 7];	xors[ 2] = m[ 2] ^ z[ 4];	xors[ 3] = z[15];
+		xors[ 4] = z[ 9] ^ m[ 0];	xors[ 5] = z[ 5];	xors[ 6] = z[ 2] ^ m[ 4];	xors[ 7] = z[10] ^ m[15];
+
+		xors[ 8] = z[ 1];		xors[ 9] = z[12];	xors[10] = z[ 8];		xors[11] = m[ 3] ^ z[13];
+		xors[12] = z[14] ^ m[ 1];	xors[13] = z[11];	xors[14] = z[ 6];		xors[15] = z[ 3] ^ m[13];
+
+		GSn4(0, 4, 8,12,	xors[ 0],xors[ 4],	1, 5, 9,13,	xors[ 1],xors[ 5],	2, 6,10,14,	xors[ 2],xors[ 6],	3, 7,11,15,	xors[ 3],xors[ 7]);
+		GSn4(0, 5,10,15,	xors[ 8],xors[12],	1, 6,11,12,	xors[ 9],xors[13],	2, 7, 8,13,	xors[10],xors[14],	3, 4, 9,14,	xors[11],xors[15]);
+
+		// 5{  2, 12,  6, 10,  0, 11,  8,  3,  4, 13,  7,  5, 15, 14,  1,  9 }
+		xors[ 0] = m[ 2] ^ z[12];	xors[ 1] = z[10];	xors[ 2] = m[ 0] ^ z[11];	xors[ 3] = z[ 3];
+		xors[ 4] = z[ 2];		xors[ 5] = z[ 6];	xors[ 6] = z[ 0];		xors[ 7] = z[ 8] ^ m[ 3];
+
+		xors[ 8] = m[ 4] ^ z[13];	xors[ 9] = z[ 5];	xors[10] = m[15] ^ z[14];	xors[11] = m[ 1] ^ z[ 9];
+		xors[12] = z[ 4] ^ m[13];	xors[13] = z[ 7];	xors[14] = z[15];		xors[15] = z[ 1];
+
+		GSn4(0, 4, 8,12,	xors[ 0],xors[ 4],	1, 5, 9,13,	xors[ 1],xors[ 5],	2, 6,10,14,	xors[ 2],xors[ 6],	3, 7,11,15,	xors[ 3],xors[ 7]);
+		GSn4(0, 5,10,15,	xors[ 8],xors[12],	1, 6,11,12,	xors[ 9],xors[13],	2, 7, 8,13,	xors[10],xors[14],	3, 4, 9,14,	xors[11],xors[15]);
+
+		// 6{ 12,  5,  1, 15, 14, 13,  4, 10,  0,  7,  6,  3,  9,  2,  8, 11 }
+		xors[ 0] = z[ 5];		xors[ 1] = m[ 1] ^ z[15];	xors[ 2] = z[13];		xors[ 3] = m[ 4] ^ z[10];
+		xors[ 4] = z[12];		xors[ 5] = z[ 1] ^ m[15];	xors[ 6] = z[14] ^ m[13];	xors[ 7] = z[ 4];
+
+		xors[ 8] = m[ 0] ^ z[ 7];	xors[ 9] = z[ 3];		xors[10] = z[ 2];		xors[11] = z[11];
+		xors[12] = z[ 0];		xors[13] = z[ 6] ^ m[ 3];	xors[14] = z[ 9] ^ m[ 2];	xors[15] = z[ 8];
+
+		GSn4(0, 4, 8,12,	xors[ 0],xors[ 4],	1, 5, 9,13,	xors[ 1],xors[ 5],	2, 6,10,14,	xors[ 2],xors[ 6],	3, 7,11,15,	xors[ 3],xors[ 7]);
+		GSn4(0, 5,10,15,	xors[ 8],xors[12],	1, 6,11,12,	xors[ 9],xors[13],	2, 7, 8,13,	xors[10],xors[14],	3, 4, 9,14,	xors[11],xors[15]);
+
+		// 7{ 13, 11,  7, 14, 12,  1,  3,  9,  5,  0, 15,  4,  8,  6,  2, 10 }
+		xors[ 0] = m[13] ^ z[11];	xors[ 1] = z[14];		xors[ 2] = z[ 1];		xors[ 3] = m[ 3] ^ z[ 9];
+		xors[ 4] = z[13];		xors[ 5] = z[ 7];		xors[ 6] = z[12] ^ m[ 1];	xors[ 7] = z[ 3];
+
+		xors[ 8] = z[ 0];						xors[10] = z[ 6];
+		xors[12] = z[ 5] ^ m[ 0];					xors[14] = z[ 8];
+
+		GSn4(0, 4, 8,12,	xors[ 0],xors[ 4],	1, 5, 9,13,	xors[ 1],xors[ 5],	2, 6,10,14,	xors[ 2],xors[ 6],	3, 7,11,15,	xors[ 3],xors[ 7]);
+		
+		v[ 0] = v[ 0] + v[ 5] + xors[ 8];
+		v[ 2] = v[ 2] + v[ 7] + xors[10];
+		v[15] = ROL16(v[15] ^ v[ 0]);
+		v[13] = ROL16(v[13] ^ v[ 2]);
+		v[10] = v[10] + v[15];
+		v[ 8] = v[ 8] + v[13];
 		v[ 5] = ROTR32(v[ 5] ^ v[10], 12);
 		v[ 7] = ROTR32(v[ 7] ^ v[ 8], 12);
-		v[ 0] += (m[ 0] ^ z[5]) + v[ 5];
-		v[ 2] += (m[ 6] ^ z[8]) + v[ 7];
-		v[13] = __byte_perm(v[13] ^ v[ 2],0, 0x0321);
+		v[ 0] = v[ 0] + v[ 5] + xors[12];
+		v[ 2] = v[ 2] + v[ 7] + xors[14];
+		v[13] = ROR8(v[13] ^ v[ 2]);
 		v[15] = ROTR32(v[15] ^ v[ 0],1);
 				
 		v[ 8] += v[13];
-		// only compute h6 & 7
-		if(xor3x(v[ 8],h7,v[ 7])==v[15]){
-			//global memory access will probably make the kernel unstable in high gpu clocks.
-			//And probably increase power consumption, reducing the (Mh/s)/W ration
+		// only compute h7
+		if(xor3x(v[ 7],h7,v[ 8])==v[15]){
 			uint32_t pos = atomicInc(&resNonce[0],0xffffffff)+1;
 			if(pos<maxResults)
 				resNonce[pos]=m[ 3];
@@ -205,10 +219,10 @@ __host__
 void blake256_8round_cpu_setBlock_16(const int thr_id,const uint32_t* endiandata, uint32_t *penddata){
 
 	const uint32_t _ALIGN(64) z[16] = {
-		SPH_C32(0x243F6A88), SPH_C32(0x85A308D3), SPH_C32(0x13198A2E), SPH_C32(0x03707344),
-		SPH_C32(0xA4093822), SPH_C32(0x299F31D0), SPH_C32(0x082EFA98), SPH_C32(0xEC4E6C89),
-		SPH_C32(0x452821E6), SPH_C32(0x38D01377), SPH_C32(0xBE5466CF), SPH_C32(0x34E90C6C),
-		SPH_C32(0xC0AC29B7), SPH_C32(0xC97C50DD), SPH_C32(0x3F84D5B5), SPH_C32(0xB5470917)
+		0x243F6A88, 0x85A308D3, 0x13198A2E, 0x03707344,
+		0xA4093822, 0x299F31D0, 0x082EFA98, 0xEC4E6C89,
+		0x452821E6, 0x38D01377, 0xBE5466CF, 0x34E90C6C,
+		0xC0AC29B7, 0xC97C50DD, 0x3F84D5B5, 0xB5470917
 	};
 	uint32_t _ALIGN(64) h[22];
 
@@ -282,18 +296,22 @@ void blake256_8round_cpu_setBlock_16(const int thr_id,const uint32_t* endiandata
 	h[ 3]+= h[ 4];
 	h[14] = SPH_ROTR32(h[14] ^ h[ 3], 16);
 	
-	h[19] = ROTL32(h[19],7); //align the rotation with v[7] v[15];
-	cudaMemcpyToSymbol(d_data, h, 20*sizeof(uint32_t), 0, cudaMemcpyHostToDevice);
+	h[19] = SPH_ROTL32(h[19],7); //align the rotation with v[7] v[15];
+	cudaMemcpyToSymbol(c_data, h, 20*sizeof(uint32_t), 0, cudaMemcpyHostToDevice);
 }
 
 static bool init[MAX_GPUS] = { 0 };
 
 extern "C" int scanhash_blake256_8round(int thr_id, struct work* work, uint32_t max_nonce, unsigned long *hashes_done){
+
 	uint32_t *pdata = work->data;
 	uint32_t *ptarget = work->target;
 	const uint32_t first_nonce  = pdata[19];
-	const uint32_t targetHigh   = ptarget[6];
 	int dev_id = device_map[thr_id];
+
+	int intensity = 31;
+	uint32_t throughput = cuda_default_throughput(thr_id, 1U << intensity);
+	if (init[thr_id]) throughput = min(throughput, max_nonce - first_nonce);
 
 	if (!init[thr_id]) {
 		cudaSetDevice(dev_id);
@@ -304,61 +322,76 @@ extern "C" int scanhash_blake256_8round(int thr_id, struct work* work, uint32_t 
 			cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
 			CUDA_LOG_ERROR();
 		}
-		CUDA_CALL_OR_RET_X(cudaMalloc(&d_resNonce[thr_id], maxResults * sizeof(uint32_t)), -1);
-		CUDA_CALL_OR_RET_X(cudaMallocHost(&h_resNonce[thr_id], maxResults * sizeof(uint32_t)), -1);
+
+		gpulog(LOG_INFO,thr_id, "Intensity set to %g, %u cuda threads", throughput2intensity(throughput), throughput);
+		CUDA_SAFE_CALL(cudaMalloc(&d_resNonce[thr_id], maxResults * sizeof(uint32_t)));
+		h_resNonce[thr_id] = (uint32_t*) malloc(maxResults * sizeof(uint32_t));
+		if(h_resNonce[thr_id] == NULL){
+			gpulog(LOG_ERR,thr_id,"Host memory allocation failed");
+			exit(EXIT_FAILURE);
+		}
+		
+		CUDA_LOG_ERROR();
+		
 		init[thr_id] = true;
 	}
 
 	uint32_t _ALIGN(64) endiandata[20];
 
-	for (int k = 0; k < 16; k++)
+	for (int k=0; k < 19; k++)
 		be32enc(&endiandata[k], pdata[k]);
 		
 	blake256_8round_cpu_setBlock_16(thr_id,endiandata,&pdata[16]);
 
-	int intensity = (device_sm[dev_id] > 500 && !is_windows()) ? 30 : 24;
-	if (device_sm[dev_id] < 350) intensity = 22;
-	uint32_t throughput = cuda_default_throughput(thr_id, 1U << intensity);
-	if (init[thr_id]) throughput = min(throughput, max_nonce - first_nonce);
-	
 	const dim3 grid((throughput + (NPT*TPB)-1)/(NPT*TPB));
 	const dim3 block(TPB);
 	int rc = 0;
-	h_resNonce[thr_id][ 0] = 1;
-	
-	do {
-		if(h_resNonce[thr_id][0]!=0)
-		cudaMemset(d_resNonce[thr_id], 0x00000000, sizeof(uint32_t));	
-		blake256_8round_gpu_hash<<<grid,block>>>(throughput, pdata[19], d_resNonce[thr_id], targetHigh);
+	cudaMemset(d_resNonce[thr_id], 0x00, maxResults*sizeof(uint32_t));
+	do {		
+		blake256_8round_gpu_hash<<<grid,block>>>(throughput, pdata[19], d_resNonce[thr_id]);
 		cudaMemcpy(h_resNonce[thr_id], d_resNonce[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost);
 		if (h_resNonce[thr_id][0] != 0){
-			cudaMemcpy(h_resNonce[thr_id], d_resNonce[thr_id], maxResults*sizeof(uint32_t), cudaMemcpyDeviceToHost);		
+			cudaMemcpy(h_resNonce[thr_id], d_resNonce[thr_id], maxResults*sizeof(uint32_t), cudaMemcpyDeviceToHost);
+			cudaMemset(d_resNonce[thr_id], 0x00, sizeof(uint32_t));
+			if(h_resNonce[thr_id][0]>(maxResults-1)){
+				gpulog(LOG_WARNING,dev_id,"Candidate flood: %u",h_resNonce[thr_id][0]);
+				h_resNonce[thr_id][0]=maxResults-1;
+			}
 			uint32_t i;
 			for(i=1;i<h_resNonce[thr_id][0]+1;i++){
 				uint32_t vhashcpu[8];
-				uint32_t Htarg = (uint32_t)targetHigh;
-
-				for (int k=0; k < 19; k++)
-					be32enc(&endiandata[k], pdata[k]);
-
 				be32enc(&endiandata[19], h_resNonce[thr_id][i]);
 				blake256_8roundHash(vhashcpu, endiandata);
-
-				if (vhashcpu[6] <= Htarg && fulltest(vhashcpu, ptarget)){
-					rc = 1;
+				if (vhashcpu[ 6] <= ptarget[ 6] && fulltest(vhashcpu, ptarget)){
 					work_set_target_ratio(work, vhashcpu);
 					*hashes_done = pdata[19] - first_nonce + throughput;
 					pdata[19] = h_resNonce[thr_id][i];
+					rc =1;
+					//search for 2nd nonce
+					for(uint32_t j=i+1;j<h_resNonce[thr_id][0]+1;j++){
+						be32enc(&endiandata[19], h_resNonce[thr_id][j]);
+						blake256_8roundHash(vhashcpu, endiandata);
+						if(vhashcpu[ 6]<=ptarget[6] && fulltest(vhashcpu, ptarget)){
+							pdata[21] = h_resNonce[thr_id][j];
+//							if(!opt_quiet)
+//								gpulog(LOG_BLUE,dev_id,"Found 2nd nonce: %u/%08X - %u/%08X",i,pdata[19],j,pdata[21]);
+							if (bn_hash_target_ratio(vhashcpu, ptarget) > work->shareratio[0]) {
+								work_set_target_ratio(work, vhashcpu);
+								xchg(pdata[21], pdata[19]);
+							}
+							rc=2;
+							break;
+						}
+					}
 					return rc;
 				}
 			}
-			//DEBUGif(h_resNonce[thr_id][0]>=maxResults-1)printf("Limit reached\n");
 		}
 		pdata[19] += throughput;
 	} while (!work_restart[thr_id].restart && ((uint64_t)max_nonce > ((uint64_t)(pdata[19]) + (uint64_t)throughput)));
 
 	*hashes_done = pdata[19] - first_nonce;
-	MyStreamSynchronize(NULL, 0, dev_id);
+
 	return rc;
 }
 
@@ -370,7 +403,7 @@ extern "C" void free_blake256_8round(int thr_id)
 
 	cudaDeviceSynchronize();
 
-	cudaFreeHost(h_resNonce[thr_id]);
+	free(h_resNonce[thr_id]);
 	cudaFree(d_resNonce[thr_id]);
 
 	init[thr_id] = false;

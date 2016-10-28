@@ -1,4 +1,4 @@
-AC_INIT([ccminer], [1.7.1], [], [ccminer], [http://github.com/tpruvot/ccminer])
+AC_INIT([ccminer], [alexis-1.0], [], [ccminer], [https://github.com/alexis78/ccminer])
 
 AC_PREREQ([2.59c])
 AC_CANONICAL_SYSTEM

@@ -28,9 +28,6 @@
     <Filter Include="Header Files\CUDA">
       <UniqueIdentifier>{a0f072d0-a831-4c23-8d64-7a026521df9c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\CUDA\JHA">
-      <UniqueIdentifier>{d8f2e173-a0a5-455b-8efc-42511b585156}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\CUDA\quark">
       <UniqueIdentifier>{dd0822bd-27cc-4d5c-8e2f-cf7d9b00feb4}</UniqueIdentifier>
     </Filter>
@@ -39,9 +36,6 @@
     </Filter>
     <Filter Include="Header Files\sph">
       <UniqueIdentifier>{7c2a98c6-064c-4a69-b803-d6f6ff5edd0b}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\CUDA\heavy">
-      <UniqueIdentifier>{c3222908-22ba-4586-a637-6363f455b06d}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source Files\CUDA\qubit">
       <UniqueIdentifier>{f3ed23a2-8ce7-41a5-b051-6da56047dc35}</UniqueIdentifier>
@@ -73,14 +67,26 @@
     <Filter Include="Ressources">
       <UniqueIdentifier>{f5117ccb-a70d-411a-b7ea-d6faed230bc7}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source Files\CUDA\scrypt">
-      <UniqueIdentifier>{c26f5b02-37b5-4420-a4e8-ee1ad517dc95}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source Files\neoscrypt">
-      <UniqueIdentifier>{2037fd0d-e7a2-4da8-956c-150aec726a99}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Source Files\CUDA\lyra2">
       <UniqueIdentifier>{1613763f-895c-4321-b58b-6f5849868956}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\CUDA\nist5">
+      <UniqueIdentifier>{4c232be6-5a71-4873-a963-7e20021789bd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\CUDA\x14">
+      <UniqueIdentifier>{bdd00143-2d53-4814-bae7-5a41333652d5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\CUDA\lbry">
+      <UniqueIdentifier>{37129fe0-9400-49fe-98bd-391f2c10e801}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\CUDA\neoscrypt">
+      <UniqueIdentifier>{82ce9ec4-7b62-4b8a-963c-4626e3122fd9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\CUDA\skein">
+      <UniqueIdentifier>{172198ff-b13f-41d4-b108-fb2a936afb31}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\CUDA\streebog">
+      <UniqueIdentifier>{8433e87e-02db-4d16-b07b-daa99d116867}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -150,9 +156,6 @@
     <ClCompile Include="sph\luffa.c">
       <Filter>Source Files\sph</Filter>
     </ClCompile>
-    <ClCompile Include="sph\md_helper.c">
-      <Filter>Source Files\sph</Filter>
-    </ClCompile>
     <ClCompile Include="sph\sha2.c">
       <Filter>Source Files\sph</Filter>
     </ClCompile>
@@ -178,9 +181,6 @@
       <Filter>Source Files\sph</Filter>
     </ClCompile>
     <ClCompile Include="sph\haval.c">
-      <Filter>Source Files\sph</Filter>
-    </ClCompile>
-    <ClCompile Include="sph\haval_helper.c">
       <Filter>Source Files\sph</Filter>
     </ClCompile>
     <ClCompile Include="sph\sha2big.c">
@@ -222,40 +222,31 @@
     <ClCompile Include="lyra2\Lyra2.c">
       <Filter>Source Files\sph</Filter>
     </ClCompile>
-    <ClCompile Include="lyra2\Sponge.c">
-      <Filter>Source Files\sph</Filter>
-    </ClCompile>
-    <ClCompile Include="scrypt.cpp">
-      <Filter>Source Files\CUDA\scrypt</Filter>
-    </ClCompile>
-    <ClCompile Include="scrypt-jane.cpp">
-      <Filter>Source Files\CUDA\scrypt</Filter>
-    </ClCompile>
-    <ClCompile Include="neoscrypt\neoscrypt.cpp">
-      <Filter>Source Files\neoscrypt</Filter>
-    </ClCompile>
-    <ClCompile Include="neoscrypt\neoscrypt-cpu.c">
-      <Filter>Source Files\neoscrypt</Filter>
-    </ClCompile>
-    <ClCompile Include="skein2.cpp">
-      <Filter>Source Files\CUDA</Filter>
-    </ClCompile>
-    <ClCompile Include="fuguecoin.cpp">
-      <Filter>Source Files\CUDA</Filter>
-    </ClCompile>
-    <ClCompile Include="groestlcoin.cpp">
-      <Filter>Source Files\CUDA</Filter>
-    </ClCompile>
-    <ClCompile Include="myriadgroestl.cpp">
-      <Filter>Source Files\CUDA</Filter>
-    </ClCompile>
-    <ClCompile Include="hefty1.c">
-      <Filter>Source Files\CUDA\heavy</Filter>
-    </ClCompile>
     <ClCompile Include="bench.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="bignum.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="sph\sph_sha2.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="sph\ripemd.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="sph\blake2s.c">
+      <Filter>Source Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="lyra2\Sponge.c">
+      <Filter>Source Files\CUDA\lyra2</Filter>
+    </ClCompile>
+    <ClCompile Include="neoscrypt\neoscrypt-cpu.c">
+      <Filter>Source Files\CUDA\neoscrypt</Filter>
+    </ClCompile>
+    <ClCompile Include="sph\blake2b.c">
+      <Filter>Header Files\sph</Filter>
+    </ClCompile>
+    <ClCompile Include="nvapi.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -292,9 +283,6 @@
     </ClInclude>
     <ClInclude Include="uint256.h">
       <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="cuda_groestlcoin.h">
-      <Filter>Header Files\CUDA</Filter>
     </ClInclude>
     <ClInclude Include="quark\cuda_quark.h">
       <Filter>Header Files\CUDA</Filter>
@@ -419,18 +407,6 @@
     <ClInclude Include="res\resource.h">
       <Filter>Ressources</Filter>
     </ClInclude>
-    <ClInclude Include="scrypt\salsa_kernel.h">
-      <Filter>Source Files\CUDA\scrypt</Filter>
-    </ClInclude>
-    <ClInclude Include="neoscrypt\neoscrypt.h">
-      <Filter>Source Files\neoscrypt</Filter>
-    </ClInclude>
-    <ClInclude Include="neoscrypt\cuda_vectors.h">
-      <Filter>Source Files\neoscrypt</Filter>
-    </ClInclude>
-    <ClInclude Include="hefty1.h">
-      <Filter>Source Files\CUDA\heavy</Filter>
-    </ClInclude>
     <ClInclude Include="bignum.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -440,70 +416,37 @@
     <ClInclude Include="lyra2\cuda_lyra2_sm2.cuh">
       <Filter>Source Files\CUDA\lyra2</Filter>
     </ClInclude>
-    <ClInclude Include="quark\cuda_quark_blake512_sp.cuh">
-      <Filter>Source Files\CUDA\quark</Filter>
+    <ClInclude Include="cuda_vectors.h">
+      <Filter>Source Files\CUDA</Filter>
     </ClInclude>
-    <ClInclude Include="quark\cuda_skein512_sp.cuh">
-      <Filter>Source Files\CUDA\quark</Filter>
+    <ClInclude Include="neoscrypt\neoscrypt.h">
+      <Filter>Source Files\CUDA\neoscrypt</Filter>
     </ClInclude>
-    <ClInclude Include="quark\cuda_bmw512_sm3.cuh">
-      <Filter>Source Files\CUDA\quark</Filter>
+    <ClInclude Include="sph\sph_ripemd.h">
+      <Filter>Header Files\sph</Filter>
     </ClInclude>
-    <ClInclude Include="x11\cuda_x11_simd512_sm2.cuh">
-      <Filter>Source Files\CUDA\x11</Filter>
+    <ClInclude Include="sph\sysendian.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="sph\blake2b.h">
+      <Filter>Header Files\sph</Filter>
+    </ClInclude>
+    <ClInclude Include="skein\skein_header.h">
+      <Filter>Source Files\CUDA\skein</Filter>
+    </ClInclude>
+    <ClInclude Include="streebog\streebog_arrays.cuh">
+      <Filter>Source Files\CUDA\streebog</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <CudaCompile Include="cuda.cpp">
       <Filter>Source Files\CUDA</Filter>
     </CudaCompile>
-    <CudaCompile Include="cuda_groestlcoin.cu">
-      <Filter>Source Files\CUDA</Filter>
-    </CudaCompile>
-    <CudaCompile Include="JHA\cuda_jha_keccak512.cu">
-      <Filter>Source Files\CUDA\JHA</Filter>
-    </CudaCompile>
-    <CudaCompile Include="JHA\jackpotcoin.cu">
-      <Filter>Source Files\CUDA\JHA</Filter>
-    </CudaCompile>
-    <CudaCompile Include="cuda_myriadgroestl.cu">
-      <Filter>Source Files\CUDA</Filter>
-    </CudaCompile>
-    <CudaCompile Include="JHA\cuda_jha_compactionTest.cu">
-      <Filter>Source Files\CUDA\JHA</Filter>
-    </CudaCompile>
-    <CudaCompile Include="quark\cuda_jh512.cu">
-      <Filter>Source Files\CUDA\quark</Filter>
-    </CudaCompile>
     <CudaCompile Include="quark\cuda_quark_blake512.cu">
       <Filter>Source Files\CUDA\quark</Filter>
     </CudaCompile>
     <CudaCompile Include="quark\cuda_quark_groestl512.cu">
       <Filter>Source Files\CUDA\quark</Filter>
-    </CudaCompile>
-    <CudaCompile Include="quark\cuda_skein512.cu">
-      <Filter>Source Files\CUDA\quark</Filter>
-    </CudaCompile>
-    <CudaCompile Include="heavy\cuda_blake512.cu">
-      <Filter>Source Files\CUDA\heavy</Filter>
-    </CudaCompile>
-    <CudaCompile Include="heavy\cuda_combine.cu">
-      <Filter>Source Files\CUDA\heavy</Filter>
-    </CudaCompile>
-    <CudaCompile Include="heavy\cuda_groestl512.cu">
-      <Filter>Source Files\CUDA\heavy</Filter>
-    </CudaCompile>
-    <CudaCompile Include="heavy\cuda_hefty1.cu">
-      <Filter>Source Files\CUDA\heavy</Filter>
-    </CudaCompile>
-    <CudaCompile Include="heavy\cuda_keccak512.cu">
-      <Filter>Source Files\CUDA\heavy</Filter>
-    </CudaCompile>
-    <CudaCompile Include="heavy\cuda_sha256.cu">
-      <Filter>Source Files\CUDA\heavy</Filter>
-    </CudaCompile>
-    <CudaCompile Include="heavy\heavy.cu">
-      <Filter>Source Files\CUDA\heavy</Filter>
     </CudaCompile>
     <CudaCompile Include="quark\cuda_bmw512.cu">
       <Filter>Source Files\CUDA\quark</Filter>
@@ -517,20 +460,11 @@
     <CudaCompile Include="quark\quarkcoin.cu">
       <Filter>Source Files\CUDA\quark</Filter>
     </CudaCompile>
-    <CudaCompile Include="qubit\deep.cu">
-      <Filter>Source Files\CUDA\qubit</Filter>
-    </CudaCompile>
-    <CudaCompile Include="qubit\luffa.cu">
-      <Filter>Source Files\CUDA\qubit</Filter>
-    </CudaCompile>
     <CudaCompile Include="qubit\qubit.cu">
       <Filter>Source Files\CUDA\qubit</Filter>
     </CudaCompile>
     <CudaCompile Include="qubit\qubit_luffa512.cu">
       <Filter>Source Files\CUDA\qubit</Filter>
-    </CudaCompile>
-    <CudaCompile Include="cuda_nist5.cu">
-      <Filter>Source Files\CUDA</Filter>
     </CudaCompile>
     <ClInclude Include="x11\cuda_x11_aes.cuh">
       <Filter>Source Files\CUDA\x11</Filter>
@@ -539,12 +473,6 @@
       <Filter>Source Files\CUDA\x11</Filter>
     </CudaCompile>
     <CudaCompile Include="x11\cuda_x11_echo.cu">
-      <Filter>Source Files\CUDA\x11</Filter>
-    </CudaCompile>
-    <CudaCompile Include="x11\cuda_x11_luffa512.cu">
-      <Filter>Source Files\CUDA\x11</Filter>
-    </CudaCompile>
-    <CudaCompile Include="x11\cuda_x11_luffa512_Cubehash.cu">
       <Filter>Source Files\CUDA\x11</Filter>
     </CudaCompile>
     <CudaCompile Include="x11\cuda_x11_shavite512.cu">
@@ -559,17 +487,8 @@
     <CudaCompile Include="x11\c11.cu">
       <Filter>Source Files\CUDA\x11</Filter>
     </CudaCompile>
-    <CudaCompile Include="x11\fresh.cu">
-      <Filter>Source Files\CUDA\x11</Filter>
-    </CudaCompile>
     <CudaCompile Include="x11\x11.cu">
       <Filter>Source Files\CUDA\x11</Filter>
-    </CudaCompile>
-    <CudaCompile Include="x13\cuda_x13_fugue512.cu">
-      <Filter>Source Files\CUDA\x13</Filter>
-    </CudaCompile>
-    <CudaCompile Include="x13\cuda_x13_hamsi512.cu">
-      <Filter>Source Files\CUDA\x13</Filter>
     </CudaCompile>
     <CudaCompile Include="x13\x13.cu">
       <Filter>Source Files\CUDA\x13</Filter>
@@ -577,29 +496,11 @@
     <CudaCompile Include="cuda_checkhash.cu">
       <Filter>Source Files\CUDA</Filter>
     </CudaCompile>
-    <CudaCompile Include="x15\x14.cu">
-      <Filter>Source Files\CUDA\x15</Filter>
-    </CudaCompile>
-    <CudaCompile Include="x15\cuda_x14_shabal512.cu">
-      <Filter>Source Files\CUDA\x15</Filter>
-    </CudaCompile>
     <CudaCompile Include="x15\x15.cu">
       <Filter>Source Files\CUDA\x15</Filter>
     </CudaCompile>
     <CudaCompile Include="x15\cuda_x15_whirlpool.cu">
       <Filter>Source Files\CUDA\x15</Filter>
-    </CudaCompile>
-    <CudaCompile Include="x15\cuda_whirlpoolx.cu">
-      <Filter>Source Files\CUDA\x15</Filter>
-    </CudaCompile>
-    <CudaCompile Include="x15\whirlpoolx.cu">
-      <Filter>Source Files\CUDA\x15</Filter>
-    </CudaCompile>
-    <CudaCompile Include="x15\whirlpool.cu">
-      <Filter>Source Files\CUDA\x15</Filter>
-    </CudaCompile>
-    <CudaCompile Include="x17\cuda_x17_haval512.cu">
-      <Filter>Source Files\CUDA\x17</Filter>
     </CudaCompile>
     <CudaCompile Include="x17\cuda_x17_sha512.cu">
       <Filter>Source Files\CUDA\x17</Filter>
@@ -607,34 +508,10 @@
     <CudaCompile Include="x17\x17.cu">
       <Filter>Source Files\CUDA\x17</Filter>
     </CudaCompile>
-    <CudaCompile Include="pentablake.cu">
-      <Filter>Source Files\CUDA</Filter>
-    </CudaCompile>
-    <CudaCompile Include="x11\sib.cu">
-      <Filter>Source Files\CUDA\x11</Filter>
-    </CudaCompile>
-    <CudaCompile Include="x11\cuda_streebog.cu">
-      <Filter>Source Files\CUDA\x11</Filter>
-    </CudaCompile>
-    <CudaCompile Include="x11\s3.cu">
-      <Filter>Source Files\CUDA\x11</Filter>
-    </CudaCompile>
-    <CudaCompile Include="Algo256\blake256.cu">
-      <Filter>Source Files\CUDA</Filter>
-    </CudaCompile>
-    <CudaCompile Include="Algo256\keccak256.cu">
-      <Filter>Source Files\CUDA</Filter>
-    </CudaCompile>
-    <CudaCompile Include="Algo256\cuda_blake256.cu">
-      <Filter>Source Files\CUDA\Algo256</Filter>
-    </CudaCompile>
     <CudaCompile Include="Algo256\cuda_bmw256.cu">
       <Filter>Source Files\CUDA\Algo256</Filter>
     </CudaCompile>
     <CudaCompile Include="Algo256\cuda_cubehash256.cu">
-      <Filter>Source Files\CUDA\Algo256</Filter>
-    </CudaCompile>
-    <CudaCompile Include="Algo256\cuda_fugue256.cu">
       <Filter>Source Files\CUDA\Algo256</Filter>
     </CudaCompile>
     <CudaCompile Include="Algo256\cuda_groestl256.cu">
@@ -644,54 +521,6 @@
       <Filter>Source Files\CUDA\Algo256</Filter>
     </CudaCompile>
     <CudaCompile Include="Algo256\cuda_skein256.cu">
-      <Filter>Source Files\CUDA\Algo256</Filter>
-    </CudaCompile>
-    <CudaCompile Include="zr5.cu">
-      <Filter>Source Files\CUDA</Filter>
-    </CudaCompile>
-    <CudaCompile Include="skein.cu">
-      <Filter>Source Files\CUDA</Filter>
-    </CudaCompile>
-    <CudaCompile Include="cuda_skeincoin.cu">
-      <Filter>Source Files\CUDA</Filter>
-    </CudaCompile>
-    <CudaCompile Include="scrypt\blake.cu">
-      <Filter>Source Files\CUDA\scrypt</Filter>
-    </CudaCompile>
-    <CudaCompile Include="scrypt\fermi_kernel.cu">
-      <Filter>Source Files\CUDA\scrypt</Filter>
-    </CudaCompile>
-    <CudaCompile Include="scrypt\keccak.cu">
-      <Filter>Source Files\CUDA\scrypt</Filter>
-    </CudaCompile>
-    <CudaCompile Include="scrypt\kepler_kernel.cu">
-      <Filter>Source Files\CUDA\scrypt</Filter>
-    </CudaCompile>
-    <CudaCompile Include="scrypt\nv_kernel.cu">
-      <Filter>Source Files\CUDA\scrypt</Filter>
-    </CudaCompile>
-    <CudaCompile Include="scrypt\nv_kernel2.cu">
-      <Filter>Source Files\CUDA\scrypt</Filter>
-    </CudaCompile>
-    <CudaCompile Include="scrypt\salsa_kernel.cu">
-      <Filter>Source Files\CUDA\scrypt</Filter>
-    </CudaCompile>
-    <CudaCompile Include="scrypt\sha256.cu">
-      <Filter>Source Files\CUDA\scrypt</Filter>
-    </CudaCompile>
-    <CudaCompile Include="scrypt\test_kernel.cu">
-      <Filter>Source Files\CUDA\scrypt</Filter>
-    </CudaCompile>
-    <CudaCompile Include="scrypt\titan_kernel.cu">
-      <Filter>Source Files\CUDA\scrypt</Filter>
-    </CudaCompile>
-    <CudaCompile Include="neoscrypt\cuda_neoscrypt.cu">
-      <Filter>Source Files\neoscrypt</Filter>
-    </CudaCompile>
-    <CudaCompile Include="Algo256\bmw.cu">
-      <Filter>Source Files\CUDA\Algo256</Filter>
-    </CudaCompile>
-    <CudaCompile Include="Algo256\cuda_bmw.cu">
       <Filter>Source Files\CUDA\Algo256</Filter>
     </CudaCompile>
     <CudaCompile Include="lyra2\cuda_lyra2.cu">
@@ -705,6 +534,105 @@
     </CudaCompile>
     <CudaCompile Include="lyra2\lyra2REv2.cu">
       <Filter>Source Files\CUDA\lyra2</Filter>
+    </CudaCompile>
+    <CudaCompile Include="nist5\cuda_nist5.cu">
+      <Filter>Source Files\CUDA\nist5</Filter>
+    </CudaCompile>
+    <CudaCompile Include="Algo256\blake256_14round.cu">
+      <Filter>Source Files\CUDA\Algo256</Filter>
+    </CudaCompile>
+    <CudaCompile Include="Algo256\blake256_8round.cu">
+      <Filter>Source Files\CUDA\Algo256</Filter>
+    </CudaCompile>
+    <CudaCompile Include="Algo256\cuda_blake2s.cu">
+      <Filter>Source Files\CUDA\Algo256</Filter>
+    </CudaCompile>
+    <CudaCompile Include="Algo256\cuda_blake256_14round.cu">
+      <Filter>Source Files\CUDA\Algo256</Filter>
+    </CudaCompile>
+    <CudaCompile Include="Algo256\decred.cu">
+      <Filter>Source Files\CUDA\Algo256</Filter>
+    </CudaCompile>
+    <CudaCompile Include="Algo256\keccak256.cu">
+      <Filter>Source Files\CUDA\Algo256</Filter>
+    </CudaCompile>
+    <CudaCompile Include="x11\x11evo.cu">
+      <Filter>Source Files\CUDA\x11</Filter>
+    </CudaCompile>
+    <CudaCompile Include="x14\x14.cu">
+      <Filter>Source Files\CUDA\x14</Filter>
+    </CudaCompile>
+    <CudaCompile Include="x14\cuda_x14_shabal512.cu">
+      <Filter>Source Files\CUDA\x14</Filter>
+    </CudaCompile>
+    <CudaCompile Include="x17\cuda_x17_haval256.cu">
+      <Filter>Source Files\CUDA\x17</Filter>
+    </CudaCompile>
+    <CudaCompile Include="lbry\cuda_sha256_lbry.cu">
+      <Filter>Source Files\CUDA\lbry</Filter>
+    </CudaCompile>
+    <CudaCompile Include="lbry\cuda_sha512_lbry.cu">
+      <Filter>Source Files\CUDA\lbry</Filter>
+    </CudaCompile>
+    <CudaCompile Include="lbry\lbry.cu">
+      <Filter>Source Files\CUDA\lbry</Filter>
+    </CudaCompile>
+    <CudaCompile Include="quark\cuda_quark_skein512.cu">
+      <Filter>Source Files\CUDA\quark</Filter>
+    </CudaCompile>
+    <CudaCompile Include="quark\cuda_quark_jh512.cu">
+      <Filter>Source Files\CUDA\quark</Filter>
+    </CudaCompile>
+    <CudaCompile Include="neoscrypt\cuda_neoscrypt.cu">
+      <Filter>Source Files\CUDA\neoscrypt</Filter>
+    </CudaCompile>
+    <CudaCompile Include="neoscrypt\neoscrypt.cu">
+      <Filter>Source Files\CUDA\neoscrypt</Filter>
+    </CudaCompile>
+    <CudaCompile Include="cuda_myriadgroestl.cu">
+      <Filter>Source Files\CUDA</Filter>
+    </CudaCompile>
+    <CudaCompile Include="myriadgroestl.cu">
+      <Filter>Source Files\CUDA</Filter>
+    </CudaCompile>
+    <CudaCompile Include="sia.cu">
+      <Filter>Source Files\CUDA</Filter>
+    </CudaCompile>
+    <CudaCompile Include="skein\skein.cu">
+      <Filter>Source Files\CUDA\skein</Filter>
+    </CudaCompile>
+    <CudaCompile Include="skein\skein2.cu">
+      <Filter>Source Files\CUDA\skein</Filter>
+    </CudaCompile>
+    <CudaCompile Include="streebog\cuda_keccak_streebog.cu">
+      <Filter>Source Files\CUDA\streebog</Filter>
+    </CudaCompile>
+    <CudaCompile Include="streebog\cuda_streebog.cu">
+      <Filter>Source Files\CUDA\streebog</Filter>
+    </CudaCompile>
+    <CudaCompile Include="streebog\sib.cu">
+      <Filter>Source Files\CUDA\streebog</Filter>
+    </CudaCompile>
+    <CudaCompile Include="streebog\veltor.cu">
+      <Filter>Source Files\CUDA\streebog</Filter>
+    </CudaCompile>
+    <CudaCompile Include="x11\cuda_x11_cubehash_shavite_512.cu">
+      <Filter>Source Files\CUDA\x11</Filter>
+    </CudaCompile>
+    <CudaCompile Include="x11\cuda_x11_simd_echo512.cu">
+      <Filter>Source Files\CUDA\x11</Filter>
+    </CudaCompile>
+    <CudaCompile Include="x13\cuda_x13_hamsi_fugue512.cu">
+      <Filter>Source Files\CUDA\x13</Filter>
+    </CudaCompile>
+    <CudaCompile Include="quark\cuda_keccak_skein512.cu">
+      <Filter>Source Files\CUDA\quark</Filter>
+    </CudaCompile>
+    <CudaCompile Include="lbry\cuda_lbry_merged.cu">
+      <Filter>Source Files\CUDA\lbry</Filter>
+    </CudaCompile>
+    <CudaCompile Include="x15\whirlpool.cu">
+      <Filter>Source Files\CUDA\x15</Filter>
     </CudaCompile>
   </ItemGroup>
   <ItemGroup>

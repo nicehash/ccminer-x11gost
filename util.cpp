@@ -12,6 +12,7 @@
 //#define _GNU_SOURCE
 #include "cpuminer-config.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -139,6 +140,10 @@ void applog(int prio, const char *fmt, ...)
 			fmt,
 			use_colors ? CL_N : ""
 		);
+		if (prio == LOG_RAW){
+			// no time prefix, for ccminer -n		
+			sprintf(f, "%s%s\n", fmt, CL_N);		
+		}
 		pthread_mutex_lock(&applog_lock);
 		vfprintf(stdout, f, ap);	/* atomic write to stdout */
 		fflush(stdout);
@@ -150,8 +155,8 @@ void applog(int prio, const char *fmt, ...)
 extern int gpu_threads;
 // Use different prefix if multiple cpu threads per gpu
 // Also, auto hide LOG_DEBUG if --debug (-D) is not used
-void gpulog(int prio, int thr_id, const char *fmt, ...)
-{
+void gpulog(int prio, int thr_id, const char *fmt, ...){
+
 	char _ALIGN(128) pfmt[128];
 	char _ALIGN(128) line[256];
 	int len, dev_id = device_map[thr_id % MAX_GPUS];
@@ -161,9 +166,9 @@ void gpulog(int prio, int thr_id, const char *fmt, ...)
 		return;
 
 	if (gpu_threads > 1)
-		len = snprintf(pfmt, 128, "GPU T%d: %s", thr_id, fmt);
+		len = snprintf(pfmt, 128, "GPU T%d:%s", thr_id, fmt);
 	else
-		len = snprintf(pfmt, 128, "GPU #%d: %s", dev_id, fmt);
+		len = snprintf(pfmt, 128, "GPU#%d:%s", dev_id, fmt);
 	pfmt[sizeof(pfmt)-1]='\0';
 
 	va_start(ap, fmt);
@@ -179,8 +184,8 @@ void gpulog(int prio, int thr_id, const char *fmt, ...)
 }
 
 /* Get default config.json path (system specific) */
-void get_defconfig_path(char *out, size_t bufsize, char *argv0)
-{
+void get_defconfig_path(char *out, size_t bufsize, char *argv0){
+
 	char *cmd = strdup(argv0);
 	char *dir = dirname(cmd);
 	const char *sep = strstr(dir, "\\") ? "\\" : "/";
@@ -205,8 +210,8 @@ void get_defconfig_path(char *out, size_t bufsize, char *argv0)
 #endif
 }
 
-void format_hashrate(double hashrate, char *output)
-{
+void format_hashrate(double hashrate, char *output){
+
 	char prefix = '\0';
 
 	if (hashrate < 10000) {
@@ -229,11 +234,7 @@ void format_hashrate(double hashrate, char *output)
 		hashrate *= 1e-12;
 	}
 
-	sprintf(
-		output,
-		prefix ? "%.2f %cH/s" : "%.2f H/s%c",
-		hashrate, prefix
-	);
+	sprintf(output,prefix ? "%.2f%cH/s" : "%.2fH/s%c",hashrate, prefix);
 }
 
 static void databuf_free(struct data_buffer *db)
@@ -246,9 +247,8 @@ static void databuf_free(struct data_buffer *db)
 	memset(db, 0, sizeof(*db));
 }
 
-static size_t all_data_cb(const void *ptr, size_t size, size_t nmemb,
-			  void *user_data)
-{
+static size_t all_data_cb(const void *ptr, size_t size, size_t nmemb, void *user_data){
+
 	struct data_buffer *db = (struct data_buffer *)user_data;
 	size_t len = size * nmemb;
 	size_t oldlen, newlen;
@@ -270,9 +270,8 @@ static size_t all_data_cb(const void *ptr, size_t size, size_t nmemb,
 	return len;
 }
 
-static size_t upload_data_cb(void *ptr, size_t size, size_t nmemb,
-			     void *user_data)
-{
+static size_t upload_data_cb(void *ptr, size_t size, size_t nmemb, void *user_data){
+
 	struct upload_buffer *ub = (struct upload_buffer *)user_data;
 	unsigned int len = (unsigned int)(size * nmemb);
 
@@ -288,8 +287,8 @@ static size_t upload_data_cb(void *ptr, size_t size, size_t nmemb,
 }
 
 #if LIBCURL_VERSION_NUM >= 0x071200
-static int seek_data_cb(void *user_data, curl_off_t offset, int origin)
-{
+static int seek_data_cb(void *user_data, curl_off_t offset, int origin){
+
 	struct upload_buffer *ub = (struct upload_buffer *)user_data;
 	
 	switch (origin) {
@@ -310,8 +309,8 @@ static int seek_data_cb(void *user_data, curl_off_t offset, int origin)
 }
 #endif
 
-static size_t resp_hdr_cb(void *ptr, size_t size, size_t nmemb, void *user_data)
-{
+static size_t resp_hdr_cb(void *ptr, size_t size, size_t nmemb, void *user_data){
+
 	struct header_info *hi = (struct header_info *)user_data;
 	size_t remlen, slen, ptrlen = size * nmemb;
 	char *rem, *val = NULL, *key = NULL;
@@ -372,9 +371,8 @@ out:
 }
 
 #if LIBCURL_VERSION_NUM >= 0x070f06
-static int sockopt_keepalive_cb(void *userdata, curl_socket_t fd,
-	curlsocktype purpose)
-{
+static int sockopt_keepalive_cb(void *userdata, curl_socket_t fd, curlsocktype purpose){
+
 	int keepalive = 1;
 	int tcp_keepcnt = 3;
 	int tcp_keepidle = 50;
@@ -420,10 +418,8 @@ static int sockopt_keepalive_cb(void *userdata, curl_socket_t fd,
 /* For getwork (longpoll or wallet) - not stratum pools!
  * DO NOT USE DIRECTLY
  */
-static json_t *json_rpc_call(CURL *curl, const char *url,
-		      const char *userpass, const char *rpc_req,
-		      bool longpoll_scan, bool longpoll, bool keepalive, int *curl_err)
-{
+static json_t *json_rpc_call(CURL *curl, const char *url, const char *userpass, const char *rpc_req, bool longpoll_scan, bool longpoll, bool keepalive, int *curl_err){
+
 	json_t *val, *err_val, *res_val;
 	int rc;
 	struct data_buffer all_data = { 0 };
@@ -611,23 +607,20 @@ err_out:
 }
 
 /* getwork calls with pool pointer (wallet/longpoll pools) */
-json_t *json_rpc_call_pool(CURL *curl, struct pool_infos *pool, const char *req,
-	bool longpoll_scan, bool longpoll, int *curl_err)
-{
-	char userpass[256];
+json_t *json_rpc_call_pool(CURL *curl, struct pool_infos *pool, const char *req, bool longpoll_scan, bool longpoll, int *curl_err){
+
+	char userpass[512];
 	// todo, malloc and store that in pool array
-	snprintf(userpass, sizeof(userpass), "%s%c%s", pool->user,
-		strlen(pool->pass)?':':'\0', pool->pass);
+	snprintf(userpass, sizeof(userpass), "%s%c%s", pool->user, strlen(pool->pass)?':':'\0', pool->pass);
 
 	return json_rpc_call(curl, pool->url, userpass, req, longpoll_scan, false, false, curl_err);
 }
 
 /* called only from longpoll thread, we have the lp_url */
-json_t *json_rpc_longpoll(CURL *curl, char *lp_url, struct pool_infos *pool, const char *req, int *curl_err)
-{
+json_t *json_rpc_longpoll(CURL *curl, char *lp_url, struct pool_infos *pool, const char *req, int *curl_err){
+
 	char userpass[256];
-	snprintf(userpass, sizeof(userpass), "%s%c%s", pool->user,
-		strlen(pool->pass)?':':'\0', pool->pass);
+	snprintf(userpass, sizeof(userpass), "%s%c%s", pool->user, strlen(pool->pass)?':':'\0', pool->pass);
 
 	// on pool rotate by time-limit, this keepalive can be a problem
 	bool keepalive = pool->time_limit == 0 || pool->time_limit > opt_timeout;
@@ -635,8 +628,8 @@ json_t *json_rpc_longpoll(CURL *curl, char *lp_url, struct pool_infos *pool, con
 	return json_rpc_call(curl, lp_url, userpass, req, false, true, keepalive, curl_err);
 }
 
-json_t *json_load_url(char* cfg_url, json_error_t *err)
-{
+json_t *json_load_url(char* cfg_url, json_error_t *err){
+
 	char err_str[CURL_ERROR_SIZE] = { 0 };
 	struct data_buffer all_data = { 0 };
 	int rc = 0; json_t *cfg = NULL;
@@ -683,8 +676,8 @@ err_out:
 /**
  * Unlike malloc, calloc set the memory to zero
  */
-void *aligned_calloc(int size)
-{
+void *aligned_calloc(int size){
+
 	const int ALIGN = 64; // cache line
 #ifdef _MSC_VER
 	void* res = _aligned_malloc(size, ALIGN);
@@ -698,8 +691,8 @@ void *aligned_calloc(int size)
 #endif
 }
 
-void aligned_free(void *ptr)
-{
+void aligned_free(void *ptr){
+
 #ifdef _MSC_VER
 	_aligned_free(ptr);
 #else
@@ -707,8 +700,23 @@ void aligned_free(void *ptr)
 #endif
 }
 
-void cbin2hex(char *out, const char *in, size_t len)
-{
+double throughput2intensity(uint32_t throughput){
+	double intensity = 0;
+	uint32_t ws = throughput;
+	uint8_t i = 0;
+	while (ws > 1 && i++ < 32)
+		ws = ws >> 1;
+	intensity = (double) i;
+	if (i && ((1U << i) < throughput)) {
+//		printf("%u - %u = %u\n",throughput,1U<<i,throughput-(1U<<i));
+		intensity += ((double) (throughput-(1U << i)) / (1U << i));
+	}
+//	intensity = round(intensity*10000)/10000;
+	return intensity;
+}
+
+void cbin2hex(char *out, const char *in, size_t len){
+
 	if (out) {
 		unsigned int i;
 		for (i = 0; i < len; i++)
@@ -716,8 +724,8 @@ void cbin2hex(char *out, const char *in, size_t len)
 	}
 }
 
-char *bin2hex(const uchar *in, size_t len)
-{
+char *bin2hex(const uchar *in, size_t len){
+
 	char *s = (char*)malloc((len * 2) + 1);
 	if (!s)
 		return NULL;
@@ -727,8 +735,8 @@ char *bin2hex(const uchar *in, size_t len)
 	return s;
 }
 
-bool hex2bin(void *output, const char *hexstr, size_t len)
-{
+bool hex2bin(void *output, const char *hexstr, size_t len){
+
 	uchar *p = (uchar *) output;
 	char hex_byte[4];
 	char *ep;
@@ -758,8 +766,7 @@ bool hex2bin(void *output, const char *hexstr, size_t len)
 /* Subtract the `struct timeval' values X and Y,
    storing the result in RESULT.
    Return 1 if the difference is negative, otherwise 0.  */
-int timeval_subtract(struct timeval *result, struct timeval *x,
-	struct timeval *y)
+int timeval_subtract(struct timeval *result, struct timeval *x,	struct timeval *y)
 {
 	/* Perform the carry for the later subtraction by updating Y. */
 	if (x->tv_usec < y->tv_usec) {
@@ -782,8 +789,8 @@ int timeval_subtract(struct timeval *result, struct timeval *x,
 	return x->tv_sec < y->tv_sec;
 }
 
-bool fulltest(const uint32_t *hash, const uint32_t *target)
-{
+bool fulltest(const uint32_t *hash, const uint32_t *target){
+
 	int i;
 	bool rc = true;
 	
@@ -826,8 +833,8 @@ bool fulltest(const uint32_t *hash, const uint32_t *target)
 }
 
 // Only used by stratum pools
-void diff_to_target(uint32_t *target, double diff)
-{
+void diff_to_target(uint32_t *target, double diff){
+
 	uint64_t m;
 	int k;
 
@@ -844,27 +851,18 @@ void diff_to_target(uint32_t *target, double diff)
 }
 
 // Only used by stratum pools
-void work_set_target(struct work* work, double diff)
-{
+void work_set_target(struct work* work, double diff){
+
 	diff_to_target(work->target, diff);
 	work->targetdiff = diff;
 }
 
-
 // Only used by longpoll pools
-double target_to_diff(uint32_t* target)
-{
-	uchar* tgt = (uchar*) target;
-	uint64_t m =
-		(uint64_t)tgt[29] << 56 |
-		(uint64_t)tgt[28] << 48 |
-		(uint64_t)tgt[27] << 40 |
-		(uint64_t)tgt[26] << 32 |
-		(uint64_t)tgt[25] << 24 |
-		(uint64_t)tgt[24] << 16 |
-		(uint64_t)tgt[23] << 8  |
-		(uint64_t)tgt[22] << 0;
+double target_to_diff(uint32_t* target){
 
+	uchar* tgt = (uchar*) target;
+	uint64_t m =    (uint64_t)tgt[29] << 56 | (uint64_t)tgt[28] << 48 | (uint64_t)tgt[27] << 40 | (uint64_t)tgt[26] << 32 |
+			(uint64_t)tgt[25] << 24 | (uint64_t)tgt[24] << 16 | (uint64_t)tgt[23] << 8  | (uint64_t)tgt[22] << 0;
 	if (!m)
 		return 0.;
 	else
@@ -877,8 +875,8 @@ double target_to_diff(uint32_t* target)
 #define socket_blocks() (errno == EAGAIN || errno == EWOULDBLOCK)
 #endif
 
-static bool send_line(curl_socket_t sock, char *s)
-{
+static bool send_line(curl_socket_t sock, char *s){
+
 	ssize_t len, sent = 0;
 	
 	len = (ssize_t)strlen(s);
@@ -902,12 +900,11 @@ static bool send_line(curl_socket_t sock, char *s)
 		sent += n;
 		len -= n;
 	}
-
 	return true;
 }
 
-bool stratum_send_line(struct stratum_ctx *sctx, char *s)
-{
+bool stratum_send_line(struct stratum_ctx *sctx, char *s){
+
 	bool ret = false;
 
 	if (opt_protocol)
@@ -920,8 +917,8 @@ bool stratum_send_line(struct stratum_ctx *sctx, char *s)
 	return ret;
 }
 
-static bool socket_full(curl_socket_t sock, int timeout)
-{
+static bool socket_full(curl_socket_t sock, int timeout){
+
 	struct timeval tv;
 	fd_set rd;
 
@@ -934,8 +931,8 @@ static bool socket_full(curl_socket_t sock, int timeout)
 	return false;
 }
 
-bool stratum_socket_full(struct stratum_ctx *sctx, int timeout)
-{
+bool stratum_socket_full(struct stratum_ctx *sctx, int timeout){
+
 	if (!sctx->sockbuf) return false;
 	return strlen(sctx->sockbuf) || socket_full(sctx->sock, timeout);
 }
@@ -943,8 +940,8 @@ bool stratum_socket_full(struct stratum_ctx *sctx, int timeout)
 #define RBUFSIZE 2048
 #define RECVSIZE (RBUFSIZE - 4)
 
-static void stratum_buffer_append(struct stratum_ctx *sctx, const char *s)
-{
+static void stratum_buffer_append(struct stratum_ctx *sctx, const char *s){
+
 	size_t old, snew;
 
 	old = strlen(sctx->sockbuf);
@@ -956,8 +953,8 @@ static void stratum_buffer_append(struct stratum_ctx *sctx, const char *s)
 	strcpy(sctx->sockbuf + old, s);
 }
 
-char *stratum_recv_line(struct stratum_ctx *sctx)
-{
+char *stratum_recv_line(struct stratum_ctx *sctx){
+
 	ssize_t len, buflen;
 	char *tok, *sret = NULL;
 	int timeout = opt_timeout;
@@ -1018,17 +1015,16 @@ out:
 }
 
 #if LIBCURL_VERSION_NUM >= 0x071101
-static curl_socket_t opensocket_grab_cb(void *clientp, curlsocktype purpose,
-	struct curl_sockaddr *addr)
-{
+static curl_socket_t opensocket_grab_cb(void *clientp, curlsocktype purpose, struct curl_sockaddr *addr){
+
 	curl_socket_t *sock = (curl_socket_t *)clientp;
 	*sock = socket(addr->family, addr->socktype, addr->protocol);
 	return *sock;
 }
 #endif
 
-bool stratum_connect(struct stratum_ctx *sctx, const char *url)
-{
+bool stratum_connect(struct stratum_ctx *sctx, const char *url){
+
 	CURL *curl;
 	int rc;
 
@@ -1101,8 +1097,8 @@ bool stratum_connect(struct stratum_ctx *sctx, const char *url)
 	return true;
 }
 
-void stratum_free_job(struct stratum_ctx *sctx)
-{
+void stratum_free_job(struct stratum_ctx *sctx){
+
 	pthread_mutex_lock(&stratum_work_lock);
 	if (sctx->job.job_id) {
 		free(sctx->job.job_id);
@@ -1120,8 +1116,8 @@ void stratum_free_job(struct stratum_ctx *sctx)
 	pthread_mutex_unlock(&stratum_work_lock);
 }
 
-void stratum_disconnect(struct stratum_ctx *sctx)
-{
+void stratum_disconnect(struct stratum_ctx *sctx){
+
 	pthread_mutex_lock(&stratum_sock_lock);
 	if (sctx->curl) {
 		pools[sctx->pooln].disconnects++;
@@ -1138,8 +1134,8 @@ void stratum_disconnect(struct stratum_ctx *sctx)
 	pthread_mutex_unlock(&stratum_sock_lock);
 }
 
-static const char *get_stratum_session_id(json_t *val)
-{
+static const char *get_stratum_session_id(json_t *val){
+
 	json_t *arr_val;
 	int i, n;
 
@@ -1161,8 +1157,8 @@ static const char *get_stratum_session_id(json_t *val)
 	return NULL;
 }
 
-static bool stratum_parse_extranonce(struct stratum_ctx *sctx, json_t *params, int pndx)
-{
+static bool stratum_parse_extranonce(struct stratum_ctx *sctx, json_t *params, int pndx){
+
 	const char* xnonce1;
 	int xn2_size;
 
@@ -1204,8 +1200,8 @@ out:
 	return false;
 }
 
-bool stratum_subscribe(struct stratum_ctx *sctx)
-{
+bool stratum_subscribe(struct stratum_ctx *sctx){
+
 	char *s, *sret = NULL;
 	const char *sid;
 	json_t *val = NULL, *res_val, *err_val;
@@ -1296,8 +1292,8 @@ out:
 
 extern bool opt_extranonce;
 
-bool stratum_authorize(struct stratum_ctx *sctx, const char *user, const char *pass)
-{
+bool stratum_authorize(struct stratum_ctx *sctx, const char *user, const char *pass){
+
 	json_t *val = NULL, *res_val, *err_val;
 	char *s, *sret;
 	json_error_t err;
@@ -1389,8 +1385,8 @@ out:
  * Extract bloc height     L H... here len=3, height=0x1333e8
  * "...0000000000ffffffff2703e83313062f503253482f043d61105408"
  */
-static uint32_t getblocheight(struct stratum_ctx *sctx)
-{
+static uint32_t getblocheight(struct stratum_ctx *sctx){
+
 	uint32_t height = 0;
 	uint8_t hlen = 0, *p, *m;
 
@@ -1415,30 +1411,41 @@ static uint32_t getblocheight(struct stratum_ctx *sctx)
 	return height;
 }
 
-static bool stratum_notify(struct stratum_ctx *sctx, json_t *params)
-{
-	const char *job_id, *prevhash, *coinb1, *coinb2, *version, *nbits, *stime, *nreward;
+static bool stratum_notify(struct stratum_ctx *sctx, json_t *params){
+
+	const char *job_id, *prevhash, *coinb1, *coinb2, *version, *nbits, *stime;
+	const char *claim = NULL, *nreward = NULL;
 	size_t coinb1_size, coinb2_size;
 	bool clean, ret = false;
-	int merkle_count, i;
+	int merkle_count, i, p=0;
 	json_t *merkle_arr;
 	uchar **merkle = NULL;
 	// uchar(*merkle_tree)[32] = { 0 };
 	int ntime;
+	char algo[64] = { 0 };
+	get_currentalgo(algo, sizeof(algo));
+	bool has_claim = !strcasecmp(algo, "lbry");
 
-	job_id = json_string_value(json_array_get(params, 0));
-	prevhash = json_string_value(json_array_get(params, 1));
-	coinb1 = json_string_value(json_array_get(params, 2));
-	coinb2 = json_string_value(json_array_get(params, 3));
-	merkle_arr = json_array_get(params, 4);
+	job_id = json_string_value(json_array_get(params, p++));
+	prevhash = json_string_value(json_array_get(params, p++));
+	if (has_claim) {
+		claim = json_string_value(json_array_get(params, p++));
+		if (!claim || strlen(claim) != 64) {
+			applog(LOG_ERR, "Stratum notify: invalid claim parameter");
+			goto out;
+		}
+	}
+	coinb1 = json_string_value(json_array_get(params, p++));
+	coinb2 = json_string_value(json_array_get(params, p++));
+	merkle_arr = json_array_get(params, p++);
 	if (!merkle_arr || !json_is_array(merkle_arr))
 		goto out;
 	merkle_count = (int) json_array_size(merkle_arr);
-	version = json_string_value(json_array_get(params, 5));
-	nbits = json_string_value(json_array_get(params, 6));
-	stime = json_string_value(json_array_get(params, 7));
-	clean = json_is_true(json_array_get(params, 8));
-	nreward = json_string_value(json_array_get(params, 9));
+	version = json_string_value(json_array_get(params, p++));
+	nbits = json_string_value(json_array_get(params, p++));
+	stime = json_string_value(json_array_get(params, p++));
+	clean = json_is_true(json_array_get(params, p)); p++;
+	nreward = json_string_value(json_array_get(params, p++));
 
 	if (!job_id || !prevhash || !coinb1 || !coinb2 || !version || !nbits || !stime ||
 	    strlen(prevhash) != 64 || strlen(version) != 8 ||
@@ -1490,6 +1497,7 @@ static bool stratum_notify(struct stratum_ctx *sctx, json_t *params)
 	free(sctx->job.job_id);
 	sctx->job.job_id = strdup(job_id);
 	hex2bin(sctx->job.prevhash, prevhash, 32);
+	if (has_claim) hex2bin(sctx->job.claim, claim, 32);
 
 	sctx->job.height = getblocheight(sctx);
 
@@ -1520,8 +1528,9 @@ out:
 }
 
 extern volatile time_t g_work_time;
-static bool stratum_set_difficulty(struct stratum_ctx *sctx, json_t *params)
-{
+
+static bool stratum_set_difficulty(struct stratum_ctx *sctx, json_t *params){
+
 	double diff;
 
 	diff = json_number_value(json_array_get(params, 0));
@@ -1535,8 +1544,8 @@ static bool stratum_set_difficulty(struct stratum_ctx *sctx, json_t *params)
 	return true;
 }
 
-static bool stratum_reconnect(struct stratum_ctx *sctx, json_t *params)
-{
+static bool stratum_reconnect(struct stratum_ctx *sctx, json_t *params){
+
 	json_t *port_val;
 	const char *host;
 	int port;
@@ -1561,8 +1570,8 @@ static bool stratum_reconnect(struct stratum_ctx *sctx, json_t *params)
 	return true;
 }
 
-static bool stratum_get_version(struct stratum_ctx *sctx, json_t *id)
-{
+static bool stratum_get_version(struct stratum_ctx *sctx, json_t *id){
+
 	char *s;
 	json_t *val;
 	bool ret;
@@ -1582,8 +1591,182 @@ static bool stratum_get_version(struct stratum_ctx *sctx, json_t *id)
 	return ret;
 }
 
-static bool stratum_show_message(struct stratum_ctx *sctx, json_t *id, json_t *params)
+static bool stratum_pong(struct stratum_ctx *sctx, json_t *id)
 {
+	char buf[64];
+	bool ret = false;
+
+	if (!id || json_is_null(id))
+		return ret;
+
+	sprintf(buf, "{\"id\":%d,\"result\":\"pong\",\"error\":null}",
+		(int) json_integer_value(id));
+	ret = stratum_send_line(sctx, buf);
+
+	return ret;
+}
+
+static bool stratum_get_algo(struct stratum_ctx *sctx, json_t *id, json_t *params)
+{
+	char algo[64] = { 0 };
+	char *s;
+	json_t *val;
+	bool ret = true;
+
+	if (!id || json_is_null(id))
+		return false;
+
+	get_currentalgo(algo, sizeof(algo));
+
+	val = json_object();
+	json_object_set(val, "id", id);
+	json_object_set_new(val, "error", json_null());
+	json_object_set_new(val, "result", json_string(algo));
+
+	s = json_dumps(val, 0);
+	ret = stratum_send_line(sctx, s);
+	json_decref(val);
+	free(s);
+
+	return ret;
+}
+
+#include "nvml.h"
+extern char driver_version[32];
+extern int cuda_arch[MAX_GPUS];
+
+static bool json_object_set_error(json_t *result, int code, const char *msg)
+{
+	json_t *val = json_object();
+	json_object_set_new(val, "code", json_integer(code));
+	json_object_set_new(val, "message", json_string(msg));
+	return json_object_set_new(result, "error", val) != -1;
+}
+
+/* allow to report algo/device perf to the pool for algo stats */
+static bool stratum_benchdata(json_t *result, json_t *params, int thr_id)
+{
+	char algo[64] = { 0 };
+	char vid[32], arch[8], driver[32];
+	char *card;
+	char os[8];
+	uint32_t watts = 0;
+	int dev_id = device_map[thr_id];
+	int cuda_ver = cuda_version();
+	struct cgpu_info *cgpu = &thr_info[thr_id].gpu;
+	json_t *val;
+
+	if (!cgpu || !opt_stratum_stats) return false;
+
+#if defined(WIN32) && (defined(_M_X64) || defined(__x86_64__))
+	strcpy(os, "win64");
+#else
+	strcpy(os, is_windows() ? "win32" : "linux");
+#endif
+
+	cuda_gpu_info(cgpu);
+
+	uint32_t curr_core_clock = 0;
+	uint32_t curr_mem_clock = 0;
+#ifdef USE_WRAPNVML
+	cgpu->has_monitoring = true;
+	cgpu->gpu_power = gpu_power(cgpu); // mWatts
+	watts = (cgpu->gpu_power >= 1000) ? cgpu->gpu_power / 1000 : 0; // ignore nvapi %
+
+	nvml_get_current_clocks(dev_id, &curr_core_clock, &curr_mem_clock); //values are in MHz
+	gpu_info(cgpu);
+#endif
+	get_currentalgo(algo, sizeof(algo));
+
+	card = device_name[dev_id];
+	cgpu->khashes = stats_get_speed(thr_id, 0.0) / 1000.0;
+
+	sprintf(vid, "%04hx:%04hx", cgpu->gpu_vid, cgpu->gpu_pid);
+	sprintf(arch, "%d", (int) cgpu->gpu_arch);
+	if (cuda_arch[dev_id] > 0 && cuda_arch[dev_id] != cgpu->gpu_arch) {
+		// if binary was not compiled for the highest cuda arch, add it
+		snprintf(arch, 8, "%d@%d", (int) cgpu->gpu_arch, cuda_arch[dev_id]);
+	}
+	snprintf(driver, 32, "CUDA %d.%d %s", cuda_ver/1000, (cuda_ver%1000) / 10, driver_version);
+	driver[31] = '\0';
+
+	val = json_object();
+	json_object_set_new(val, "algo", json_string(algo));
+	json_object_set_new(val, "type", json_string("gpu"));
+	json_object_set_new(val, "device", json_string(card));
+	json_object_set_new(val, "vendorid", json_string(vid));
+	json_object_set_new(val, "arch", json_string(arch));
+	json_object_set_new(val, "freq", json_integer(cgpu->gpu_clock/1000));
+	json_object_set_new(val, "curr_freq", json_integer(curr_core_clock));
+	json_object_set_new(val, "memf", json_integer(cgpu->gpu_memclock/1000));
+	json_object_set_new(val, "curr_memf", json_integer(curr_mem_clock));
+	json_object_set_new(val, "power", json_integer(watts));
+	json_object_set_new(val, "khashes", json_real(cgpu->khashes));
+	json_object_set_new(val, "intensity", json_real(cgpu->intensity));
+	json_object_set_new(val, "throughput", json_integer(cgpu->throughput));
+	json_object_set_new(val, "client", json_string(PACKAGE_NAME "/" PACKAGE_VERSION));
+	json_object_set_new(val, "os", json_string(os));
+	json_object_set_new(val, "driver", json_string(driver));
+
+	json_object_set_new(result, "result", val);
+
+	if(!opt_quiet)applog(LOG_BLUE,"Sent stats for %s",card);
+	return true;
+}
+
+static bool stratum_get_stats(struct stratum_ctx *sctx, json_t *id, json_t *params)
+{
+	char *s;
+	json_t *val;
+	bool ret;
+
+	if (!id || json_is_null(id))
+		return false;
+
+	val = json_object();
+	json_object_set(val, "id", id);
+
+	ret = stratum_benchdata(val, params, 0);
+
+	if (!ret) {
+		json_object_set_error(val, 1, "disabled"); //EPERM
+	} else {
+		json_object_set_new(val, "error", json_null());
+	}
+
+	s = json_dumps(val, 0);
+	ret = stratum_send_line(sctx, s);
+	json_decref(val);
+	free(s);
+
+	return ret;
+}
+
+static bool stratum_get_version(struct stratum_ctx *sctx, json_t *id, json_t *params)
+{
+	char *s;
+	json_t *val;
+	bool ret = true;
+
+	if (!id || json_is_null(id))
+		return false;
+
+	val = json_object();
+	json_object_set(val, "id", id);
+	json_object_set_new(val, "result", json_string(USER_AGENT));
+	if (ret) json_object_set_new(val, "error", json_null());
+
+	s = json_dumps(val, 0);
+	ret = stratum_send_line(sctx, s);
+
+	json_decref(val);
+	free(s);
+
+	return ret;
+}
+
+static bool stratum_show_message(struct stratum_ctx *sctx, json_t *id, json_t *params){
+
 	char *s;
 	json_t *val;
 	bool ret;
@@ -1607,8 +1790,30 @@ static bool stratum_show_message(struct stratum_ctx *sctx, json_t *id, json_t *p
 	return ret;
 }
 
-bool stratum_handle_method(struct stratum_ctx *sctx, const char *s)
+static bool stratum_unknown_method(struct stratum_ctx *sctx, json_t *id)
 {
+	char *s;
+	json_t *val;
+	bool ret = false;
+
+	if (!id || json_is_null(id))
+		return ret;
+
+	val = json_object();
+	json_object_set(val, "id", id);
+	json_object_set_new(val, "result", json_false());
+	json_object_set_error(val, 38, "unknown method"); // ENOSYS
+
+	s = json_dumps(val, 0);
+	ret = stratum_send_line(sctx, s);
+	json_decref(val);
+	free(s);
+
+	return ret;
+}
+
+bool stratum_handle_method(struct stratum_ctx *sctx, const char *s){
+
 	json_t *val, *id, *params;
 	json_error_t err;
 	const char *method;
@@ -1630,6 +1835,11 @@ bool stratum_handle_method(struct stratum_ctx *sctx, const char *s)
 		ret = stratum_notify(sctx, params);
 		goto out;
 	}
+	if (!strcasecmp(method, "mining.ping")) { // cgminer 4.7.1+
+		if (opt_debug) applog(LOG_DEBUG, "Pool ping");
+		ret = stratum_pong(sctx, id);
+		goto out;
+	}
 	if (!strcasecmp(method, "mining.set_difficulty")) {
 		ret = stratum_set_difficulty(sctx, params);
 		goto out;
@@ -1642,6 +1852,18 @@ bool stratum_handle_method(struct stratum_ctx *sctx, const char *s)
 		ret = stratum_reconnect(sctx, params);
 		goto out;
 	}
+	if (!strcasecmp(method, "client.get_algo")) { // ccminer only yet!
+		// will prevent wrong algo parameters on a pool, will be used as test on rejects
+		if (!opt_quiet) applog(LOG_BLUE, "Pool asked your algo parameter");
+		ret = stratum_get_algo(sctx, id, params);
+		goto out;
+	}
+	if (!strcasecmp(method, "client.get_stats")) { // ccminer/yiimp only yet!
+		// optional to fill device benchmarks
+		if (!opt_quiet) applog(LOG_BLUE, "Pool asked your stats");
+		ret = stratum_get_stats(sctx, id, params);
+		goto out;
+	}
 	if (!strcasecmp(method, "client.get_version")) {
 		ret = stratum_get_version(sctx, id);
 		goto out;
@@ -1649,6 +1871,12 @@ bool stratum_handle_method(struct stratum_ctx *sctx, const char *s)
 	if (!strcasecmp(method, "client.show_message")) {
 		ret = stratum_show_message(sctx, id, params);
 		goto out;
+	}
+	
+	if (!ret) {
+		// don't fail = disconnect stratum on unknown (and optional?) methods
+		if (opt_debug) applog(LOG_WARNING, "unknown stratum method %s!", method);
+		ret = stratum_unknown_method(sctx, id);
 	}
 
 out:
@@ -1658,8 +1886,8 @@ out:
 	return ret;
 }
 
-struct thread_q *tq_new(void)
-{
+struct thread_q *tq_new(void){
+
 	struct thread_q *tq;
 
 	tq = (struct thread_q *)calloc(1, sizeof(*tq));
@@ -1673,8 +1901,8 @@ struct thread_q *tq_new(void)
 	return tq;
 }
 
-void tq_free(struct thread_q *tq)
-{
+void tq_free(struct thread_q *tq){
+
 	struct tq_ent *ent, *iter;
 
 	if (!tq)
@@ -1692,8 +1920,8 @@ void tq_free(struct thread_q *tq)
 	free(tq);
 }
 
-static void tq_freezethaw(struct thread_q *tq, bool frozen)
-{
+static void tq_freezethaw(struct thread_q *tq, bool frozen){
+
 	pthread_mutex_lock(&tq->mutex);
 
 	tq->frozen = frozen;
@@ -1702,18 +1930,18 @@ static void tq_freezethaw(struct thread_q *tq, bool frozen)
 	pthread_mutex_unlock(&tq->mutex);
 }
 
-void tq_freeze(struct thread_q *tq)
-{
+void tq_freeze(struct thread_q *tq){
+
 	tq_freezethaw(tq, true);
 }
 
-void tq_thaw(struct thread_q *tq)
-{
+void tq_thaw(struct thread_q *tq){
+
 	tq_freezethaw(tq, false);
 }
 
-bool tq_push(struct thread_q *tq, void *data)
-{
+bool tq_push(struct thread_q *tq, void *data){
+
 	struct tq_ent *ent;
 	bool rc = true;
 
@@ -1739,8 +1967,8 @@ bool tq_push(struct thread_q *tq, void *data)
 	return rc;
 }
 
-void *tq_pop(struct thread_q *tq, const struct timespec *abstime)
-{
+void *tq_pop(struct thread_q *tq, const struct timespec *abstime){
+
 	struct tq_ent *ent;
 	void *rval = NULL;
 	int rc;
@@ -1775,8 +2003,8 @@ out:
  * @param buf char[9] mini
  * @param time_t timer to convert
  */
-size_t time2str(char* buf, time_t timer)
-{
+size_t time2str(char* buf, time_t timer){
+
 	struct tm* tm_info;
 	tm_info = localtime(&timer);
 	return strftime(buf, 19, "%H:%M:%S", tm_info);
@@ -1786,8 +2014,8 @@ size_t time2str(char* buf, time_t timer)
  * Alloc and returns time string (to be freed)
  * @param time_t timer to convert
  */
-char* atime2str(time_t timer)
-{
+char* atime2str(time_t timer){
+
 	char* buf = (char*) malloc(16);
 	memset(buf, 0, 16);
 	time2str(buf, timer);
@@ -1795,8 +2023,8 @@ char* atime2str(time_t timer)
 }
 
 /* sprintf can be used in applog */
-static char* format_hash(char* buf, uint8_t* h)
-{
+static char* format_hash(char* buf, uint8_t* h){
+
 	uchar *hash = (uchar*) h;
 	int len = 0;
 	for (int i=0; i < 32; i += 4) {
@@ -1807,8 +2035,8 @@ static char* format_hash(char* buf, uint8_t* h)
 }
 
 /* to debug diff in data */
-void applog_compare_hash(void *hash, void *hash_ref)
-{
+void applog_compare_hash(void *hash, void *hash_ref){
+
 	char s[256] = "";
 	int len = 0;
 	uchar* hash1 = (uchar*)hash;
@@ -1822,21 +2050,21 @@ void applog_compare_hash(void *hash, void *hash_ref)
 	applog(LOG_DEBUG, "%s", s);
 }
 
-void applog_hash(void *hash)
-{
+void applog_hash(void *hash){
+
 	char s[128] = {'\0'};
 	applog(LOG_DEBUG, "%s", format_hash(s, (uint8_t*)hash));
 }
 
-void applog_hash64(void *hash)
-{
+void applog_hash64(void *hash){
+
 	char s[128] = {'\0'};
 	char t[128] = {'\0'};
 	applog(LOG_DEBUG, "%s %s", format_hash(s, (uint8_t*)hash), format_hash(t, &((uint8_t*)hash)[32]));
 }
 
-void applog_hex(void *data, int len)
-{
+void applog_hex(void *data, int len){
+
 	char* hex = bin2hex((uchar*)data, len);
 	applog(LOG_DEBUG, "%s", hex);
 	free(hex);
@@ -1868,8 +2096,8 @@ static uint32_t zrtest[20] = {
 	swab32(0x2a9e2300),
 };
 
-void do_gpu_tests(void)
-{
+void do_gpu_tests(void){
+
 #ifdef _DEBUG
 	unsigned long done;
 	char s[128] = { '\0' };
@@ -1894,8 +2122,8 @@ void do_gpu_tests(void)
 #endif
 }
 
-void print_hash_tests(void)
-{
+void print_hash_tests(void){
+
 	uchar *scratchbuf = NULL;
 	char s[128] = {'\0'};
 	uchar hash[128];
@@ -1912,8 +2140,11 @@ void print_hash_tests(void)
 	blake256_8roundHash(&hash[0], &buf[0]);
 	printpfx("blake256 / 8round", hash);
 
-	whirlxHash(&hash[0], &buf[0]);
-	printpfx("whirlpoolx", hash);
+	wcoinhash(&hash[0], &buf[0]);
+	printpfx("whirlpool", hash);
+	
+//	whirlxHash(&hash[0], &buf[0]);
+//	printpfx("whirlpoolx", hash);
 
 	keccak256_hash(&hash[0], &buf[0]);
 	printpfx("keccak", hash);
@@ -1924,6 +2155,63 @@ void print_hash_tests(void)
 	lyra2v2_hash(&hash[0], &buf[0]);
 	printpfx("lyra2v2", hash);
 
+	skeincoinhash(&hash[0], &buf[0]);
+	printpfx("skein", hash);
+	
+	skein2hash(&hash[0], &buf[0]);
+	printpfx("skein2", hash);
+		
+	nist5hash(&hash[0], &buf[0]);
+	printpfx("nist5", hash);
+		
+	quarkhash(&hash[0], &buf[0]);
+	printpfx("quark", hash);
+
+	qubithash(&hash[0], &buf[0]);
+	printpfx("qubit", hash);
+
+	x11hash(&hash[0], &buf[0]);
+	printpfx("X11", hash);
+
+	x11evo_hash(&hash[0], &buf[0]);
+	printpfx("x11evo", hash);
+
+	c11hash(&hash[0], &buf[0]);
+	printpfx("c11", hash);
+
+	sibhash(&hash[0], &buf[0]);
+	printpfx("sib", hash);
+	
+	x13hash(&hash[0], &buf[0]);
+	printpfx("X13", hash);
+
+	x14hash(&hash[0], &buf[0]);
+	printpfx("X14", hash);
+
+	x15hash(&hash[0], &buf[0]);
+	printpfx("X15", hash);
+
+	x17hash(&hash[0], &buf[0]);
+	printpfx("X17", hash);
+
+	lbry_hash(&hash[0], &buf[0]);
+	printpfx("LBRY", hash);
+
+	neoscrypt(&hash[0], &buf[0], 80000620);
+	printpfx("neoscrypt", hash);
+
+//	blake2b_hash(&hash[0], &buf[0]);
+//	printpfx("sia", hash);
+
+	myriadhash(&hash[0], &buf[0]);
+	printpfx("myriad", hash);
+		
+	veltorhash(&hash[0], &buf[0]);
+	printpfx("veltor", hash);
+	
+//	yescrypt(&hash[0], &buf[0]);
+//	printpfx("yescrypt", hash);	
+	
 	printf("\n");
 
 	do_gpu_tests();

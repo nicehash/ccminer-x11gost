@@ -11,26 +11,29 @@ extern "C" {
 #include "cuda_helper.h"
 
 
-static uint64_t *d_hash[MAX_GPUS];
-static uint64_t* d_matrix[MAX_GPUS];
+static uint2 *d_hash[MAX_GPUS];
+static uint2 *d_matrix[MAX_GPUS];
 
-extern void blake256_14round_cpu_init(int thr_id, uint32_t threads);
-extern void blake256_14round_cpu_hash_80(const int thr_id, const uint32_t threads, const uint32_t startNonce, uint64_t *Hash, int order);
-extern void blake256_14round_cpu_setBlock_80(uint32_t *pdata);
-extern void keccak256_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNonce, uint64_t *d_outputHash, int order);
+extern void blake256_14round_cpu_hash_80(const uint32_t threads, const uint32_t startNonce, uint2* d_Hash);
+extern void blake256_14round_cpu_setBlock_80(const uint32_t *pdata);
+
+extern void keccak256_cpu_hash_32(const int thr_id,const uint32_t threads, uint2* d_hash);
 extern void keccak256_cpu_init(int thr_id);
 extern void keccak256_cpu_free(int thr_id);
-extern void skein256_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNonce, uint64_t *d_outputHash, int order);
-extern void skein256_cpu_init(int thr_id, uint32_t threads);
-extern void cubehash256_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce, uint64_t *d_hash, int order);
 
-extern void lyra2v2_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNonce, uint64_t *d_outputHash, int order);
-extern void lyra2v2_cpu_init(int thr_id, uint32_t threads, uint64_t* d_matrix);
+extern void skein256_cpu_hash_32(const uint32_t threads, uint2 *d_hash);
+extern void skein256_cpu_init(int thr_id);
+
+extern void cubehash256_cpu_hash_32(const uint32_t threads, uint2* d_hash);
+
+extern void lyra2v2_cpu_hash_32(int thr_id, uint32_t threads,uint2* DMatrix, uint2 *d_Hash);
+extern void lyra2v2_cpu_init(int thr_id, uint2 *hash);
 
 extern void bmw256_setTarget(const void *ptarget);
-extern void bmw256_cpu_init(int thr_id, uint32_t threads);
+extern void bmw256_cpu_init(int thr_id);
 extern void bmw256_cpu_free(int thr_id);
-extern void bmw256_cpu_hash_32(int thr_id, uint32_t threads, uint32_t startNounce, uint64_t *g_hash, uint32_t *resultnonces);
+extern void bmw_set_output(int thr_id);
+extern void bmw256_cpu_hash_32(int thr_id, uint32_t threads,uint2 *g_hash, uint32_t *resultnonces, const uint2 target);
 
 void lyra2v2_hash(void *state, const void *input)
 {
@@ -96,7 +99,7 @@ extern "C" int scanhash_lyra2v2(int thr_id, struct work* work, uint32_t max_nonc
 	uint32_t *ptarget = work->target;
 	const uint32_t first_nonce = pdata[19];
 	int dev_id = device_map[thr_id];
-	int intensity = (device_sm[dev_id] > 500 && !is_windows()) ? 20 : 18;
+	int intensity = (device_sm[dev_id] > 500) ? 22 : 20;
 	uint32_t throughput = cuda_default_throughput(dev_id, 1UL << intensity);
 	if (init[thr_id]) throughput = min(throughput, max_nonce - first_nonce);
 
@@ -105,30 +108,28 @@ extern "C" int scanhash_lyra2v2(int thr_id, struct work* work, uint32_t max_nonc
 
 	if (!init[thr_id])
 	{
-		size_t matrix_sz = 16 * sizeof(uint64_t) * 4 * 3;
 		cudaSetDevice(dev_id);
 		if (opt_cudaschedule == -1 && gpu_threads == 1) {
 			cudaDeviceReset();
 			// reduce cpu usage
 			cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);
+			cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
+			cudaDeviceSetSharedMemConfig(cudaSharedMemBankSizeEightByte);			
 			CUDA_LOG_ERROR();
 		}
 
-		blake256_14round_cpu_init(thr_id, throughput);
-		keccak256_cpu_init(thr_id);
-		skein256_cpu_init(thr_id, throughput);
-		bmw256_cpu_init(thr_id, throughput);
+		gpulog(LOG_INFO,thr_id, "Intensity set to %g, %u cuda threads", throughput2intensity(throughput), throughput);
+		
+		cuda_get_arch(dev_id);
+		skein256_cpu_init(thr_id);
+//		keccak256_cpu_init(thr_id);
+		bmw256_cpu_init(thr_id);
 
-		// SM 3 implentation requires a bit more memory
-		if (device_sm[dev_id] < 500 || cuda_arch[dev_id] < 500)
-			matrix_sz = 16 * sizeof(uint64_t) * 4 * 4;
-			
-		CUDA_SAFE_CALL(cudaMalloc(&d_matrix[thr_id], matrix_sz * throughput));
-		lyra2v2_cpu_init(thr_id, throughput, d_matrix[thr_id]);
-
-		CUDA_SAFE_CALL(cudaMalloc(&d_hash[thr_id], (size_t)32 * throughput));
-
-		api_set_throughput(thr_id, throughput);
+		CUDA_SAFE_CALL(cudaMalloc(&d_matrix[thr_id], 4 * 4 * sizeof(uint2) * throughput));
+//		lyra2v2_cpu_init(thr_id, d_matrix[thr_id]);
+		
+		CUDA_SAFE_CALL(cudaMalloc(&d_hash[thr_id], 8 * sizeof(uint32_t) * throughput));
+//		api_set_throughput(thr_id, throughput);
 		init[thr_id] = true;
 	}
 
@@ -137,56 +138,51 @@ extern "C" int scanhash_lyra2v2(int thr_id, struct work* work, uint32_t max_nonc
 		be32enc(&endiandata[k], pdata[k]);
 
 	blake256_14round_cpu_setBlock_80(pdata);
-	bmw256_setTarget(ptarget);
-
+	bmw_set_output(thr_id);
 	do {
-		int order = 0;
 		uint32_t foundNonces[2] = { 0, 0 };
 
-		blake256_14round_cpu_hash_80(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
-		TRACE("blake  :");
-		keccak256_cpu_hash_32(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
-		TRACE("keccak :");
-		cubehash256_cpu_hash_32(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
-		TRACE("cube   :");
-		lyra2v2_cpu_hash_32(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
-		TRACE("lyra2  :");
-		skein256_cpu_hash_32(thr_id, throughput, pdata[19], d_hash[thr_id], order++);
-		TRACE("skein  :");
-		cubehash256_cpu_hash_32(thr_id, throughput,pdata[19], d_hash[thr_id], order++);
-		TRACE("cube   :");
-
-		bmw256_cpu_hash_32(thr_id, throughput, pdata[19], d_hash[thr_id], foundNonces);
-
-		*hashes_done = pdata[19] - first_nonce + throughput;
+		blake256_14round_cpu_hash_80(throughput, pdata[19], d_hash[thr_id]);
+		keccak256_cpu_hash_32(thr_id,throughput, d_hash[thr_id]);
+		cubehash256_cpu_hash_32(throughput, d_hash[thr_id]);
+		lyra2v2_cpu_hash_32(thr_id, throughput,d_matrix[thr_id],d_hash[thr_id]);
+		skein256_cpu_hash_32(throughput, d_hash[thr_id]);
+		cubehash256_cpu_hash_32(throughput, d_hash[thr_id]);
+		bmw256_cpu_hash_32(thr_id, throughput, d_hash[thr_id], foundNonces, *(uint2*)&ptarget[6]);
 
 		if (foundNonces[0] != 0)
 		{
+			const uint32_t startNounce = pdata[19];
 			uint32_t vhash64[8];
-			be32enc(&endiandata[19], foundNonces[0]);
+			be32enc(&endiandata[19], startNounce + foundNonces[0]);
 			lyra2v2_hash(vhash64, endiandata);
 			if (vhash64[7] <= ptarget[7] && fulltest(vhash64, ptarget))
 			{
 				int res = 1;
+				*hashes_done = pdata[19] - first_nonce + throughput;
 				work_set_target_ratio(work, vhash64);
-				pdata[19] = foundNonces[0];
+				pdata[19] = startNounce + foundNonces[0];
 				// check if there was another one...
 				if (foundNonces[1] != 0)
 				{
-					be32enc(&endiandata[19], foundNonces[1]);
+					be32enc(&endiandata[19], (pdata[19]-foundNonces[ 0])+foundNonces[1]);
 					lyra2v2_hash(vhash64, endiandata);
-					pdata[21] = foundNonces[1];
-					if (bn_hash_target_ratio(vhash64, ptarget) > work->shareratio) {
+					pdata[21] = startNounce + foundNonces[1];
+//					if(!opt_quiet)
+//						applog(LOG_BLUE,"Found 2nd nonce: %08X",pdata[21]);
+					if (bn_hash_target_ratio(vhash64, ptarget) > work->shareratio[0]) {
 						work_set_target_ratio(work, vhash64);
 						xchg(pdata[19], pdata[21]);
 					}
-					res++;
+					res=2;
 				}
 				return res;
 			}
 			else
 			{
+				if(vhash64[7]>ptarget[ 7])
 				gpulog(LOG_WARNING, thr_id, "result for %08x does not validate on CPU!", foundNonces[0]);
+				bmw_set_output(thr_id);
 			}
 		}
 
@@ -208,13 +204,13 @@ extern "C" void free_lyra2v2(int thr_id)
 	if (!init[thr_id])
 		return;
 
-	cudaThreadSynchronize();
+	cudaDeviceSynchronize();
 
 	cudaFree(d_hash[thr_id]);
 	cudaFree(d_matrix[thr_id]);
 
 	bmw256_cpu_free(thr_id);
-	keccak256_cpu_free(thr_id);
+//	keccak256_cpu_free(thr_id);
 
 	init[thr_id] = false;
 
