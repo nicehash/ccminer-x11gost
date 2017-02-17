@@ -484,6 +484,9 @@ void get_currentalgo(char* buf, int sz)
  */
 void proper_exit(int reason)
 {
+	exit(reason);
+	return;
+
 	restart_threads();
 	if (abort_flag) /* already called */
 		return;
@@ -1860,6 +1863,7 @@ static void *miner_thread(void *userdata)
 					applog(LOG_NOTICE, "Benchmark: %s", rate);
 					usleep(200*1000);
 					fprintf(stderr, "%llu\n", (long long unsigned int) global_hashrate);
+					proper_exit(0);
 				} else {
 					applog(LOG_NOTICE,
 						"Mining timeout of %ds reached, exiting...", opt_time_limit);
