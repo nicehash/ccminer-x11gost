@@ -122,7 +122,7 @@ extern "C" int scanhash_sib(int thr_id, struct work* work, uint32_t max_nonce, u
 	if ((strstr(device_name[dev_id], "960")))default_throughput = 1 << 20; // 2 GB of ram
 	if ((strstr(device_name[dev_id], "950")))default_throughput = 1 << 20; // 2 GB of ram
 
-	if ((strstr(device_name[dev_id], "1070")))default_throughput = 1 << 22;
+	//if ((strstr(device_name[dev_id], "1070")))default_throughput = 1 << 22;
 	
 	uint32_t throughput = cuda_default_throughput(thr_id, default_throughput); // 19=256*256*8;
 	if (init[thr_id]) throughput = min(throughput, max_nonce - first_nonce);
